@@ -169,10 +169,8 @@ fn merge_consecutive_user_messages(messages: &mut Vec<Value>) -> bool {
     let mut changed = false;
     let mut index = 0;
     while index + 1 < messages.len() {
-        let current_is_user =
-            messages[index].get("role").and_then(Value::as_str) == Some("user");
-        let next_is_user =
-            messages[index + 1].get("role").and_then(Value::as_str) == Some("user");
+        let current_is_user = messages[index].get("role").and_then(Value::as_str) == Some("user");
+        let next_is_user = messages[index + 1].get("role").and_then(Value::as_str) == Some("user");
         if !(current_is_user && next_is_user) {
             index += 1;
             continue;
@@ -872,10 +870,7 @@ mod tests {
         assert_eq!(messages[2]["role"], "user");
         let merged = messages[2]["content"].as_array().unwrap();
         assert_eq!(merged.len(), 2);
-        assert_eq!(
-            merged[0]["text"],
-            "<system-reminder>ping</system-reminder>"
-        );
+        assert_eq!(merged[0]["text"], "<system-reminder>ping</system-reminder>");
         assert_eq!(merged[1]["text"], "continue");
     }
 
@@ -959,10 +954,7 @@ mod tests {
         assert!(rewrite_mid_session_system_messages_as_user(&mut input));
         let result = anthropic_to_openai(input).unwrap();
         assert_eq!(result["messages"][0]["role"], "system");
-        assert_eq!(
-            result["messages"][0]["content"],
-            "Stable top-level system."
-        );
+        assert_eq!(result["messages"][0]["content"], "Stable top-level system.");
         assert_eq!(result["messages"][1]["role"], "user");
         assert_eq!(result["messages"][2]["role"], "assistant");
         assert_eq!(result["messages"][3]["role"], "user");

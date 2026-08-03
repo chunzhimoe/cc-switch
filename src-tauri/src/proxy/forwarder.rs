@@ -1338,9 +1338,10 @@ impl RequestForwarder {
             if self.rectifier_config.enabled
                 && self.rectifier_config.request_mid_session_system_as_user
             {
-                let changed = super::providers::transform::rewrite_mid_session_system_messages_as_user(
-                    &mut mapped_body,
-                );
+                let changed =
+                    super::providers::transform::rewrite_mid_session_system_messages_as_user(
+                        &mut mapped_body,
+                    );
                 if changed {
                     log::debug!(
                         "[Rectifier] rewrote mid-session system messages as user (provider={})",
