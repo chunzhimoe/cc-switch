@@ -123,6 +123,105 @@ pub fn resolve_reasoning_effort(body: &Value) -> Option<&'static str> {
     }
 }
 
+/// Rewrite mid-session `role=system` messages to `role=user`.
+///
+/// Claude Code injects system-reminders as `messages[].role = "system"` mid-turn.
+/// Some upstreams and conversion paths hoist/merge those into the leading system
+/// block, which mutates the prompt prefix every few rounds and busts cache.
+/// Rewriting them to `user` in place keeps the top-level `system` field stable
+/// while preserving reminder content at its historical position.
+///
+/// Consecutive user messages produced by the rewrite are merged so Anthropic's
+/// alternating-role constraint still holds.
+///
+/// Returns whether the body was modified.
+pub fn rewrite_mid_session_system_messages_as_user(body: &mut Value) -> bool {
+    let Some(messages) = body.get_mut("messages").and_then(Value::as_array_mut) else {
+        return false;
+    };
+
+    let mut changed = false;
+    for message in messages.iter_mut() {
+        if message.get("role").and_then(Value::as_str) != Some("system") {
+            continue;
+        }
+        let Some(object) = message.as_object_mut() else {
+            continue;
+        };
+        object.insert("role".to_string(), json!("user"));
+        changed = true;
+    }
+
+    // Only merge after a rewrite so pre-existing consecutive users (rare but
+    // valid on some gateways) are left alone.
+    if changed {
+        merge_consecutive_user_messages(messages);
+    }
+
+    changed
+}
+
+fn merge_consecutive_user_messages(messages: &mut Vec<Value>) -> bool {
+    if messages.len() < 2 {
+        return false;
+    }
+
+    let mut changed = false;
+    let mut index = 0;
+    while index + 1 < messages.len() {
+        let current_is_user =
+            messages[index].get("role").and_then(Value::as_str) == Some("user");
+        let next_is_user =
+            messages[index + 1].get("role").and_then(Value::as_str) == Some("user");
+        if !(current_is_user && next_is_user) {
+            index += 1;
+            continue;
+        }
+
+        let next = messages.remove(index + 1);
+        append_user_message_content(&mut messages[index], &next);
+        // Removing the following user message always changes history shape.
+        changed = true;
+    }
+
+    changed
+}
+
+fn append_user_message_content(target: &mut Value, source: &Value) -> bool {
+    let Some(source_content) = source.get("content") else {
+        return false;
+    };
+    let source_parts = normalize_message_content_parts(source_content);
+    if source_parts.is_empty() {
+        return false;
+    }
+
+    let target_parts = target
+        .get("content")
+        .map(normalize_message_content_parts)
+        .unwrap_or_default();
+
+    let mut parts = target_parts;
+    parts.extend(source_parts);
+    target["content"] = Value::Array(parts);
+    true
+}
+
+fn normalize_message_content_parts(content: &Value) -> Vec<Value> {
+    match content {
+        Value::String(text) if !text.is_empty() => {
+            vec![json!({ "type": "text", "text": text })]
+        }
+        Value::Array(parts) => parts
+            .iter()
+            .filter(|part| !part.is_null())
+            .cloned()
+            .collect(),
+        Value::Object(object) => vec![Value::Object(object.clone())],
+        _ => Vec::new(),
+    }
+}
+
 /// Anthropic 请求 → OpenAI Chat Completions 请求
 ///
 /// 转换工具库 API：当前无生产调用方（连通性检查不再发真实请求，曾是其唯一 crate 内
@@ -749,6 +848,125 @@ pub fn openai_to_anthropic(body: Value) -> Result<Value, ProxyError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_rewrite_mid_session_system_messages_as_user_keeps_top_level_system() {
+        let mut body = json!({
+            "system": "Stable top-level system.",
+            "messages": [
+                { "role": "user", "content": "hello" },
+                { "role": "assistant", "content": "hi" },
+                { "role": "system", "content": "<system-reminder>ping</system-reminder>" },
+                { "role": "user", "content": "continue" }
+            ]
+        });
+
+        assert!(rewrite_mid_session_system_messages_as_user(&mut body));
+        assert_eq!(body["system"], "Stable top-level system.");
+
+        let messages = body["messages"].as_array().unwrap();
+        // system + following user merge into one user turn
+        assert_eq!(messages.len(), 3);
+        assert_eq!(messages[0]["role"], "user");
+        assert_eq!(messages[1]["role"], "assistant");
+        assert_eq!(messages[2]["role"], "user");
+        let merged = messages[2]["content"].as_array().unwrap();
+        assert_eq!(merged.len(), 2);
+        assert_eq!(
+            merged[0]["text"],
+            "<system-reminder>ping</system-reminder>"
+        );
+        assert_eq!(merged[1]["text"], "continue");
+    }
+
+    #[test]
+    fn test_rewrite_mid_session_system_merges_with_previous_user() {
+        let mut body = json!({
+            "messages": [
+                { "role": "user", "content": "hello" },
+                {
+                    "role": "system",
+                    "content": [{ "type": "text", "text": "reminder" }]
+                }
+            ]
+        });
+
+        assert!(rewrite_mid_session_system_messages_as_user(&mut body));
+        let messages = body["messages"].as_array().unwrap();
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0]["role"], "user");
+        let content = messages[0]["content"].as_array().unwrap();
+        assert_eq!(content[0]["text"], "hello");
+        assert_eq!(content[1]["text"], "reminder");
+    }
+
+    #[test]
+    fn test_rewrite_mid_session_system_no_op_without_system_roles() {
+        let mut body = json!({
+            "system": "top",
+            "messages": [
+                { "role": "user", "content": "hello" },
+                { "role": "assistant", "content": "hi" }
+            ]
+        });
+        let before = body.clone();
+        assert!(!rewrite_mid_session_system_messages_as_user(&mut body));
+        assert_eq!(body, before);
+    }
+
+    #[test]
+    fn test_anthropic_to_openai_mid_session_system_is_hoisted_without_rewrite() {
+        // Documents the cache-busting path this rectifier prevents: without the
+        // rewrite, OpenAI Chat conversion merges mid-session system into the head.
+        let input = json!({
+            "model": "claude-3-sonnet",
+            "max_tokens": 1024,
+            "system": "Stable top-level system.",
+            "messages": [
+                { "role": "user", "content": "hello" },
+                { "role": "assistant", "content": "hi" },
+                { "role": "system", "content": "mid-session reminder" },
+                { "role": "user", "content": "continue" }
+            ]
+        });
+
+        let result = anthropic_to_openai(input).unwrap();
+        assert_eq!(result["messages"][0]["role"], "system");
+        assert!(result["messages"][0]["content"]
+            .as_str()
+            .unwrap()
+            .contains("Stable top-level system."));
+        assert!(result["messages"][0]["content"]
+            .as_str()
+            .unwrap()
+            .contains("mid-session reminder"));
+    }
+
+    #[test]
+    fn test_anthropic_to_openai_after_rewrite_keeps_prefix_stable() {
+        let mut input = json!({
+            "model": "claude-3-sonnet",
+            "max_tokens": 1024,
+            "system": "Stable top-level system.",
+            "messages": [
+                { "role": "user", "content": "hello" },
+                { "role": "assistant", "content": "hi" },
+                { "role": "system", "content": "mid-session reminder" },
+                { "role": "user", "content": "continue" }
+            ]
+        });
+
+        assert!(rewrite_mid_session_system_messages_as_user(&mut input));
+        let result = anthropic_to_openai(input).unwrap();
+        assert_eq!(result["messages"][0]["role"], "system");
+        assert_eq!(
+            result["messages"][0]["content"],
+            "Stable top-level system."
+        );
+        assert_eq!(result["messages"][1]["role"], "user");
+        assert_eq!(result["messages"][2]["role"], "assistant");
+        assert_eq!(result["messages"][3]["role"], "user");
+    }
 
     #[test]
     fn test_anthropic_to_openai_simple() {

@@ -327,6 +327,8 @@ export interface RectifierConfig {
   requestThinkingBudget: boolean;
   requestMediaFallback: boolean;
   requestMediaHeuristic: boolean;
+  /** Rewrite mid-session role=system messages to user to protect prompt cache. */
+  requestMidSessionSystemAsUser: boolean;
 }
 
 export interface OptimizerConfig {

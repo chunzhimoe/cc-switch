@@ -1332,6 +1332,22 @@ impl RequestForwarder {
             None
         };
         if adapter.name() == "Claude" {
+            // Rewrite mid-session system-reminders before any format transform so
+            // OpenAI Chat's system-hoist and native Anthropic gateways cannot move
+            // them into the leading system prefix (which busts prompt cache).
+            if self.rectifier_config.enabled
+                && self.rectifier_config.request_mid_session_system_as_user
+            {
+                let changed = super::providers::transform::rewrite_mid_session_system_messages_as_user(
+                    &mut mapped_body,
+                );
+                if changed {
+                    log::debug!(
+                        "[Rectifier] rewrote mid-session system messages as user (provider={})",
+                        provider.id
+                    );
+                }
+            }
             if let Some(api_format) = resolved_claude_api_format.as_deref() {
                 super::providers::normalize_anthropic_messages_for_provider(
                     &mut mapped_body,

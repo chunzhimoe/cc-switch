@@ -17,6 +17,7 @@ export function RectifierConfigPanel() {
     requestThinkingBudget: true,
     requestMediaFallback: true,
     requestMediaHeuristic: true,
+    requestMidSessionSystemAsUser: true,
   });
   const [optimizerConfig, setOptimizerConfig] = useState<OptimizerConfig>({
     enabled: false,
@@ -139,6 +140,25 @@ export function RectifierConfigPanel() {
             disabled={!config.enabled || !config.requestMediaFallback}
             onCheckedChange={(checked) =>
               handleChange({ requestMediaHeuristic: checked })
+            }
+          />
+        </div>
+        <div className="flex items-center justify-between pl-4">
+          <div className="space-y-0.5">
+            <Label>
+              {t("settings.advanced.rectifier.midSessionSystemAsUser")}
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              {t(
+                "settings.advanced.rectifier.midSessionSystemAsUserDescription",
+              )}
+            </p>
+          </div>
+          <Switch
+            checked={config.requestMidSessionSystemAsUser}
+            disabled={!config.enabled}
+            onCheckedChange={(checked) =>
+              handleChange({ requestMidSessionSystemAsUser: checked })
             }
           />
         </div>

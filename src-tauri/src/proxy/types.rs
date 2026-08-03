@@ -218,6 +218,14 @@ pub struct RectifierConfig {
     /// 仍保留「显式声明」与「上游兜底」，且不改变 Codex 模型目录声明。
     #[serde(default = "default_true")]
     pub request_media_heuristic: bool,
+    /// 请求整流：中途 system 消息改写为 user（默认开启）
+    ///
+    /// Claude Code 会在会话中途注入 `role=system` 的 system-reminder。
+    /// 部分上游/转换路径会把它们合并到会话前部 system，击穿 prompt 前缀缓存。
+    /// 开启后将 `messages[]` 内的 system 就地改写为 user，并合并连续 user，
+    /// 保持历史位置稳定。顶层 `system` 字段不动。
+    #[serde(default = "default_true")]
+    pub request_mid_session_system_as_user: bool,
 }
 
 fn default_true() -> bool {
@@ -236,6 +244,7 @@ impl Default for RectifierConfig {
             request_thinking_budget: true,
             request_media_fallback: true,
             request_media_heuristic: true,
+            request_mid_session_system_as_user: true,
         }
     }
 }
@@ -393,6 +402,10 @@ mod tests {
             config.request_media_heuristic,
             "启发式 text-only 模型识别默认应为 true"
         );
+        assert!(
+            config.request_mid_session_system_as_user,
+            "中途 system→user 整流默认应为 true"
+        );
     }
 
     #[test]
@@ -410,6 +423,10 @@ mod tests {
         assert!(
             config.request_media_heuristic,
             "缺 requestMediaHeuristic 时应回退默认值 true"
+        );
+        assert!(
+            config.request_mid_session_system_as_user,
+            "缺 requestMidSessionSystemAsUser 时应回退默认值 true"
         );
     }
 
@@ -445,6 +462,16 @@ mod tests {
         assert!(config.enabled);
         assert!(config.request_thinking_signature);
         assert!(config.request_thinking_budget);
+        assert!(config.request_mid_session_system_as_user);
+    }
+
+    #[test]
+    fn test_rectifier_config_serde_mid_session_system_explicit_false() {
+        let json = r#"{"requestMidSessionSystemAsUser": false}"#;
+        let config: RectifierConfig = serde_json::from_str(json).unwrap();
+        assert!(!config.request_mid_session_system_as_user);
+        assert!(config.enabled);
+        assert!(config.request_thinking_signature);
     }
 
     #[test]

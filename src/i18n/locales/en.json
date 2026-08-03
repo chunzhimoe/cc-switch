@@ -390,7 +390,9 @@
         "mediaFallback": "Unsupported Image Fallback",
         "mediaFallbackDescription": "When a provider does not support image input (it declares text-only capability, or the upstream returns an unsupported-image error), automatically replaces image blocks with an [Unsupported Image] marker so the conversation is not interrupted",
         "mediaHeuristic": "Text-Only Model Preflight",
-        "mediaHeuristicDescription": "Before sending, strips images for models in the built-in confirmed text-only registry. Turning this off only disables the proxy's registry-based preflight; declared text-only handling and upstream-error fallback remain, and Codex model-catalog capability declarations are unchanged"
+        "mediaHeuristicDescription": "Before sending, strips images for models in the built-in confirmed text-only registry. Turning this off only disables the proxy's registry-based preflight; declared text-only handling and upstream-error fallback remain, and Codex model-catalog capability declarations are unchanged",
+        "midSessionSystemAsUser": "Rewrite Mid-Session System as User",
+        "midSessionSystemAsUserDescription": "Rewrites mid-session role=system messages (e.g. system-reminders) to user so they are not merged into the leading system block and bust prompt cache. The top-level system prompt is left unchanged"
       },
       "optimizer": {
         "title": "Bedrock Request Optimizer",

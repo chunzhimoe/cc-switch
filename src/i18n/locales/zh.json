@@ -390,7 +390,9 @@
         "mediaFallback": "不支持图片降级",
         "mediaFallbackDescription": "当供应商不支持图片输入时（已声明纯文本能力，或上游返回不支持图片的错误），自动将图片块替换为 [Unsupported Image] 标记，使对话不中断",
         "mediaHeuristic": "纯文本模型预判",
-        "mediaHeuristicDescription": "发送前根据内置的已确认纯文本模型注册表剥离图片。关闭仅停用代理的注册表预判；已声明纯文本模型的处理和上游报错兜底仍保留，且不会改变 Codex 模型目录的能力声明"
+        "mediaHeuristicDescription": "发送前根据内置的已确认纯文本模型注册表剥离图片。关闭仅停用代理的注册表预判；已声明纯文本模型的处理和上游报错兜底仍保留，且不会改变 Codex 模型目录的能力声明",
+        "midSessionSystemAsUser": "中途 system 改写为 user",
+        "midSessionSystemAsUserDescription": "将会话中途注入的 role=system（如 system-reminder）改写为 user，避免被合并到会话前部 system 后击穿 prompt 缓存。顶层 system 提示词保持不变"
       },
       "optimizer": {
         "title": "Bedrock 请求优化器",

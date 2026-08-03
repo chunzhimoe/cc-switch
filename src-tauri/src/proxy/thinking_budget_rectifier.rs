@@ -150,6 +150,7 @@ mod tests {
             request_thinking_budget: true,
             request_media_fallback: true,
             request_media_heuristic: true,
+            request_mid_session_system_as_user: true,
         }
     }
 
@@ -160,6 +161,7 @@ mod tests {
             request_thinking_budget: false,
             request_media_fallback: true,
             request_media_heuristic: true,
+            request_mid_session_system_as_user: true,
         }
     }
 
@@ -170,6 +172,7 @@ mod tests {
             request_thinking_budget: true,
             request_media_fallback: true,
             request_media_heuristic: true,
+            request_mid_session_system_as_user: true,
         }
     }
 
