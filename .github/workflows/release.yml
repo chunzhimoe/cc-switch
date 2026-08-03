@@ -133,13 +133,26 @@ jobs:
       - name: Prepare Tauri signing key
         shell: bash
         run: |
-          # 调试：检查 Secret 是否存在
+          set -euo pipefail
+          # Fork/local builds may not have updater signing secrets. Prefer a
+          # signed build when present, otherwise disable updater artifacts and
+          # continue with installable unsigned packages.
           if [ -z "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
-            echo "❌ TAURI_SIGNING_PRIVATE_KEY Secret 为空或不存在" >&2
-            echo "请检查 GitHub 仓库 Settings > Secrets and variables > Actions" >&2
-            exit 1
+            echo "⚠️ TAURI_SIGNING_PRIVATE_KEY missing — building without updater signatures"
+            echo "TAURI_UPDATER_SIGNING=false" >> "$GITHUB_ENV"
+            # createUpdaterArtifacts=true requires a signing private key.
+            node -e '
+              const fs = require("fs");
+              const path = "src-tauri/tauri.conf.json";
+              const conf = JSON.parse(fs.readFileSync(path, "utf8"));
+              if (conf.bundle) conf.bundle.createUpdaterArtifacts = false;
+              fs.writeFileSync(path, JSON.stringify(conf, null, 2) + "\n");
+              console.log("createUpdaterArtifacts disabled for unsigned build");
+            '
+            exit 0
           fi
-          
+
+          echo "TAURI_UPDATER_SIGNING=true" >> "$GITHUB_ENV"
           RAW="${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}"
           # 目标：提供正确的私钥“文件路径”给 Tauri CLI，避免内容解码歧义
           KEY_PATH="$RUNNER_TEMP/tauri_signing.key"
@@ -187,7 +200,7 @@ jobs:
           echo "✅ Tauri signing key prepared"
 
       - name: Import Apple signing certificate
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && secrets.APPLE_CERTIFICATE != '' && secrets.KEYCHAIN_PASSWORD != '' && secrets.APPLE_CERTIFICATE_PASSWORD != ''
         shell: bash
         run: |
           set -euo pipefail
@@ -224,6 +237,7 @@ jobs:
           fi
           echo "✅ Signing identity: $IDENTITY"
           echo "APPLE_SIGNING_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+          echo "APPLE_CODE_SIGNING=true" >> "$GITHUB_ENV"
 
           # Cleanup certificate file
           rm -f "$CERT_PATH"
@@ -239,6 +253,17 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           set -euo pipefail
+          # Without Apple Developer secrets, ship an unsigned/ad-hoc build so
+          # forks can still produce installable artifacts for local testing.
+          if [ -z "${APPLE_SIGNING_IDENTITY:-}" ]; then
+            echo "⚠️ No Apple signing identity — building unsigned macOS app"
+            export APPLE_SIGNING_IDENTITY="-"
+            unset APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID || true
+            pnpm tauri build --target universal-apple-darwin
+            echo "✅ Unsigned macOS build succeeded"
+            exit 0
+          fi
+
           max_attempts=3
           for attempt in $(seq 1 "$max_attempts"); do
             echo "=== macOS build/notarization attempt ${attempt}/${max_attempts} ==="
@@ -281,6 +306,7 @@ jobs:
           set -euxo pipefail
           mkdir -p release-assets
           VERSION="${GITHUB_REF_NAME}"  # e.g., v3.5.0
+          SIGNED="${APPLE_CODE_SIGNING:-false}"
 
           # Locate bundle artifacts
           TAR_GZ=""; APP_PATH=""
@@ -295,36 +321,35 @@ jobs:
             fi
           done
 
-          if [ -z "$TAR_GZ" ]; then
-            echo "❌ No macOS .tar.gz updater artifact found" >&2
-            exit 1
-          fi
           if [ -z "$APP_PATH" ]; then
             echo "❌ No .app found" >&2
             exit 1
           fi
 
-          # Staple notarization ticket to .app (Tauri already notarized it)
-          xcrun stapler staple "$APP_PATH"
-          echo "✅ .app stapled"
+          # Staple notarization ticket only for fully signed/notarized builds.
+          if [ "$SIGNED" = "true" ]; then
+            xcrun stapler staple "$APP_PATH"
+            echo "✅ .app stapled"
+          else
+            echo "⚠️ Skipping stapler staple for unsigned macOS build"
+          fi
 
-          # 1) Collect .tar.gz (updater artifact)
-          NEW_TAR_GZ="CC-Switch-${VERSION}-macOS.tar.gz"
-          cp "$TAR_GZ" "release-assets/$NEW_TAR_GZ"
-          [ -f "$TAR_GZ.sig" ] && cp "$TAR_GZ.sig" "release-assets/$NEW_TAR_GZ.sig" || echo ".sig for macOS not found yet"
-          echo "macOS updater artifact copied: $NEW_TAR_GZ"
+          # 1) Collect .tar.gz (updater artifact) when present
+          if [ -n "$TAR_GZ" ]; then
+            NEW_TAR_GZ="CC-Switch-${VERSION}-macOS.tar.gz"
+            cp "$TAR_GZ" "release-assets/$NEW_TAR_GZ"
+            [ -f "$TAR_GZ.sig" ] && cp "$TAR_GZ.sig" "release-assets/$NEW_TAR_GZ.sig" || echo ".sig for macOS not found yet"
+            echo "macOS updater artifact copied: $NEW_TAR_GZ"
+          else
+            echo "⚠️ No macOS .tar.gz updater artifact found (expected for unsigned builds)"
+          fi
 
           # 2) Collect .app as zip
           NEW_ZIP="CC-Switch-${VERSION}-macOS.zip"
           ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "release-assets/$NEW_ZIP"
           echo "macOS zip ready: $NEW_ZIP"
 
-          # 3) Create styled DMG with create-dmg (Tauri's built-in DMG styling doesn't work on CI)
-          if [ -z "${APPLE_SIGNING_IDENTITY:-}" ]; then
-            echo "❌ APPLE_SIGNING_IDENTITY is missing before DMG creation" >&2
-            exit 1
-          fi
-
+          # 3) Create styled DMG with create-dmg
           HOMEBREW_NO_AUTO_UPDATE=1 brew install create-dmg
           NEW_DMG="CC-Switch-${VERSION}-macOS.dmg"
           DMG_STAGE_DIR="$RUNNER_TEMP/dmg-stage"
@@ -332,17 +357,23 @@ jobs:
           mkdir -p "$DMG_STAGE_DIR"
           ditto "$APP_PATH" "$DMG_STAGE_DIR/CC Switch.app"
 
+          CREATE_DMG_ARGS=(
+            --volname "CC Switch"
+            --background "src-tauri/icons/dmg-background.png"
+            --window-size 660 400
+            --window-pos 200 120
+            --icon-size 80
+            --icon "CC Switch.app" 180 220
+            --hide-extension "CC Switch.app"
+            --app-drop-link 480 220
+            --no-internet-enable
+          )
+          if [ -n "${APPLE_SIGNING_IDENTITY:-}" ] && [ "$SIGNED" = "true" ]; then
+            CREATE_DMG_ARGS+=(--codesign "$APPLE_SIGNING_IDENTITY")
+          fi
+
           create-dmg \
-            --volname "CC Switch" \
-            --background "src-tauri/icons/dmg-background.png" \
-            --window-size 660 400 \
-            --window-pos 200 120 \
-            --icon-size 80 \
-            --icon "CC Switch.app" 180 220 \
-            --hide-extension "CC Switch.app" \
-            --app-drop-link 480 220 \
-            --codesign "$APPLE_SIGNING_IDENTITY" \
-            --no-internet-enable \
+            "${CREATE_DMG_ARGS[@]}" \
             "release-assets/$NEW_DMG" \
             "$DMG_STAGE_DIR"
 
@@ -350,7 +381,7 @@ jobs:
           echo "✅ Styled DMG created: $NEW_DMG"
 
       - name: Notarize macOS DMG
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && env.APPLE_CODE_SIGNING == 'true' && secrets.APPLE_ID != '' && secrets.APPLE_PASSWORD != '' && secrets.APPLE_TEAM_ID != ''
         shell: bash
         timeout-minutes: 30
         env:
@@ -392,7 +423,7 @@ jobs:
           done
 
       - name: Verify macOS code signing and notarization
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && env.APPLE_CODE_SIGNING == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -463,9 +494,8 @@ jobs:
             if (Test-Path $sigPath) {
               Copy-Item $sigPath (Join-Path release-assets ("$dest.sig"))
               Write-Host "Signature copied: $dest.sig"
-            } elseif ($isArm64) {
-              throw "Signature not found for $($msi.Name)"
             } else {
+              # Unsigned fork builds intentionally skip updater signatures.
               Write-Warning "Signature not found for $($msi.Name)"
             }
           } elseif ($isArm64) {
