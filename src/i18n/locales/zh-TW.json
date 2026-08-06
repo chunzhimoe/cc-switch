@@ -1295,7 +1295,14 @@
     "pricingModelSourceInherit": "繼承全域預設",
     "pricingModelSourceRequest": "請求模型",
     "pricingModelSourceResponse": "回傳模型",
-    "pricingModelSourceHint": "選擇依請求模型還是回傳模型進行定價比對"
+    "pricingModelSourceHint": "選擇依請求模型還是回傳模型進行定價比對",
+    "modelListProxy": "全域 Models 代理",
+    "useAsGlobalModelsSource": "作為全域資料來源",
+    "modelListProxyDesc": "將此供應商的完整 models 回應公開到本機 /v1/models，並自動轉換公開模型名稱。全域只能啟用一個供應商。",
+    "modelsUrl": "Models API 位址",
+    "modelsUrlHint": "可留空，將依供應商 Base URL 自動推導 /v1/models 或 /models。",
+    "stripModelPrefix": "移除模型名稱前綴",
+    "stripModelPrefixHint": "例如 claude-qd/auto 會顯示為 qd/auto；實際請求會自動還原原始前綴。"
   },
   "codexConfig": {
     "authJson": "auth.json (JSON) *",

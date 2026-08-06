@@ -1294,7 +1294,14 @@
     "pricingModelSourceInherit": "グローバル設定を継承",
     "pricingModelSourceRequest": "リクエストモデル",
     "pricingModelSourceResponse": "レスポンスモデル",
-    "pricingModelSourceHint": "リクエストモデルまたはレスポンスモデルで価格を照合するかを選択"
+    "pricingModelSourceHint": "リクエストモデルまたはレスポンスモデルで価格を照合するかを選択",
+    "modelListProxy": "グローバル Models プロキシ",
+    "useAsGlobalModelsSource": "グローバルソースとして使用",
+    "modelListProxyDesc": "このプロバイダーの完全な models レスポンスをローカル /v1/models に公開し、公開モデル名を変換します。グローバルで有効にできるプロバイダーは 1 つだけです。",
+    "modelsUrl": "Models API URL",
+    "modelsUrlHint": "省略可能です。空の場合はプロバイダーの Base URL から /v1/models または /models を自動推定します。",
+    "stripModelPrefix": "モデル名プレフィックスを削除",
+    "stripModelPrefixHint": "例: claude-qd/auto は qd/auto と表示され、実際のリクエストでは元のプレフィックスを自動的に復元します。"
   },
   "codexConfig": {
     "authJson": "auth.json (JSON) *",

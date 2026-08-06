@@ -15,7 +15,7 @@ use super::{
         claude_stream_usage_event_filter, codex_stream_usage_event_filter, CLAUDE_PARSER_CONFIG,
         CODEX_PARSER_CONFIG, GEMINI_PARSER_CONFIG, OPENAI_PARSER_CONFIG,
     },
-    handler_context::RequestContext,
+    handler_context::{extract_gemini_model_from_path, RequestContext},
     providers::{
         codex_chat_common::extract_reasoning_field_text,
         codex_chat_history::record_responses_sse_stream,
@@ -80,7 +80,13 @@ pub async fn get_status(State(state): State<ProxyState>) -> Result<Json<ProxySta
 /// Only serves the catalog when the live config.toml still references the
 /// cc-switch–owned `model_catalog_json`, using the same path ownership rules as
 /// Codex live-setting import.
-pub async fn handle_models() -> Result<Json<Value>, ProxyError> {
+pub async fn handle_models(
+    State(state): State<ProxyState>,
+) -> Result<Json<Value>, ProxyError> {
+    if let Some(models) = super::global_model_proxy::fetch_global_models(&state.db).await? {
+        return Ok(Json(models));
+    }
+
     let generated_path = crate::codex_config::get_codex_model_catalog_path();
     let active_catalog_path = match crate::codex_config::read_codex_config_text() {
         Ok(config_text) => {
@@ -1929,6 +1935,17 @@ pub async fn handle_gemini(
     let method = parts.method.clone();
     let headers = parts.headers;
     let extensions = parts.extensions;
+
+    // All clients share the explicitly configured global model-list source.
+    // Preserve Gemini's native passthrough when no source is configured.
+    if method == axum::http::Method::GET
+        && matches!(uri.path(), "/v1beta/models" | "/gemini/v1beta/models" | "/gemini/v1/models")
+    {
+        if let Some(models) = super::global_model_proxy::fetch_global_models(&state.db).await? {
+            return Ok(Json(models).into_response());
+        }
+    }
+
     let body_bytes = req_body
         .collect()
         .await
@@ -1953,6 +1970,13 @@ pub async fn handle_gemini(
         .path_and_query()
         .map(|pq| pq.as_str())
         .unwrap_or(uri.path());
+    let restored_endpoint =
+        super::global_model_proxy::restore_gemini_endpoint_with_refresh(&state.db, endpoint).await?;
+    let endpoint = restored_endpoint.as_deref().unwrap_or(endpoint);
+    if let Some(restored) = restored_endpoint.as_ref() {
+        ctx.request_model = extract_gemini_model_from_path(restored)
+            .unwrap_or_else(|| ctx.request_model.clone());
+    }
 
     let is_stream = body
         .get("stream")

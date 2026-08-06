@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useState, useEffect } from "react";
-import { ChevronDown, ChevronRight, Coins } from "lucide-react";
+import { ChevronDown, ChevronRight, Coins, ListTree } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -20,23 +20,40 @@ interface ProviderPricingConfig {
   pricingModelSource: PricingModelSourceOption;
 }
 
+interface ModelListProxyFormConfig {
+  isGlobalSource: boolean;
+  modelsUrl: string;
+  stripPrefix: string;
+}
+
 interface ProviderAdvancedConfigProps {
   pricingConfig: ProviderPricingConfig;
   onPricingConfigChange: (config: ProviderPricingConfig) => void;
+  modelListProxy: ModelListProxyFormConfig;
+  onModelListProxyChange: (config: ModelListProxyFormConfig) => void;
 }
 
 export function ProviderAdvancedConfig({
   pricingConfig,
   onPricingConfigChange,
+  modelListProxy,
+  onModelListProxyChange,
 }: ProviderAdvancedConfigProps) {
   const { t } = useTranslation();
   const [isPricingConfigOpen, setIsPricingConfigOpen] = useState(
     pricingConfig.enabled,
   );
+  const [isModelListProxyOpen, setIsModelListProxyOpen] = useState(
+    modelListProxy.isGlobalSource,
+  );
 
   useEffect(() => {
     setIsPricingConfigOpen(pricingConfig.enabled);
   }, [pricingConfig.enabled]);
+
+  useEffect(() => {
+    setIsModelListProxyOpen(modelListProxy.isGlobalSource);
+  }, [modelListProxy.isGlobalSource]);
 
   return (
     <div className="space-y-4">
@@ -173,6 +190,121 @@ export function ProviderAdvancedConfig({
                   })}
                 </p>
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-border/50 bg-muted/20">
+        <button
+          type="button"
+          className="flex w-full items-center justify-between p-4 hover:bg-muted/30 transition-colors"
+          onClick={() => setIsModelListProxyOpen(!isModelListProxyOpen)}
+        >
+          <div className="flex items-center gap-3">
+            <ListTree className="h-4 w-4 text-muted-foreground" />
+            <span className="font-medium">
+              {t("providerAdvanced.modelListProxy", {
+                defaultValue: "全局 Models 代理",
+              })}
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <div
+              className="flex items-center gap-2"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <Label
+                htmlFor="model-list-proxy-enabled"
+                className="text-sm text-muted-foreground"
+              >
+                {t("providerAdvanced.useAsGlobalModelsSource", {
+                  defaultValue: "作为全局数据源",
+                })}
+              </Label>
+              <Switch
+                id="model-list-proxy-enabled"
+                checked={modelListProxy.isGlobalSource}
+                onCheckedChange={(checked) => {
+                  onModelListProxyChange({
+                    ...modelListProxy,
+                    isGlobalSource: checked,
+                  });
+                  if (checked) setIsModelListProxyOpen(true);
+                }}
+              />
+            </div>
+            {isModelListProxyOpen ? (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            )}
+          </div>
+        </button>
+        <div
+          className={cn(
+            "overflow-hidden transition-all duration-200",
+            isModelListProxyOpen
+              ? "max-h-[500px] opacity-100"
+              : "max-h-0 opacity-0",
+          )}
+        >
+          <div className="border-t border-border/50 p-4 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {t("providerAdvanced.modelListProxyDesc", {
+                defaultValue:
+                  "将该供应商的完整 models 响应暴露到本地 /v1/models，并自动转换公开模型名称。全局只能启用一个供应商。",
+              })}
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="model-list-url">
+                {t("providerAdvanced.modelsUrl", {
+                  defaultValue: "Models API 地址",
+                })}
+              </Label>
+              <Input
+                id="model-list-url"
+                value={modelListProxy.modelsUrl}
+                onChange={(event) =>
+                  onModelListProxyChange({
+                    ...modelListProxy,
+                    modelsUrl: event.target.value,
+                  })
+                }
+                placeholder="https://api.example.com/v1/models"
+                disabled={!modelListProxy.isGlobalSource}
+              />
+              <p className="text-xs text-muted-foreground">
+                {t("providerAdvanced.modelsUrlHint", {
+                  defaultValue:
+                    "可留空，将根据供应商 Base URL 自动推导 /v1/models 或 /models。",
+                })}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="model-list-strip-prefix">
+                {t("providerAdvanced.stripModelPrefix", {
+                  defaultValue: "删除模型名前缀",
+                })}
+              </Label>
+              <Input
+                id="model-list-strip-prefix"
+                value={modelListProxy.stripPrefix}
+                onChange={(event) =>
+                  onModelListProxyChange({
+                    ...modelListProxy,
+                    stripPrefix: event.target.value,
+                  })
+                }
+                placeholder="claude-"
+                disabled={!modelListProxy.isGlobalSource}
+              />
+              <p className="text-xs text-muted-foreground">
+                {t("providerAdvanced.stripModelPrefixHint", {
+                  defaultValue:
+                    "例如 claude-qd/auto 将显示为 qd/auto；实际请求会自动恢复原始前缀。",
+                })}
+              </p>
             </div>
           </div>
         </div>

@@ -286,16 +286,33 @@ impl RequestContext {
 /// `/v1/models/gemini-1.5-flash`, `gemini/v1beta/models/<model>:streamGenerateContent`.
 /// Returns `None` when no `models/<name>` segment is present.
 pub(crate) fn extract_gemini_model_from_path(endpoint: &str) -> Option<String> {
-    let segments: Vec<&str> = endpoint.split('/').collect();
-    segments
-        .iter()
-        .position(|s| *s == "models")
-        .and_then(|i| segments.get(i + 1).copied())
-        // 防御性裁剪：即便调用方传入带 ? 或 :action 的字符串，也只保留 model id 本身
-        .map(|s| s.split('?').next().unwrap_or(s))
-        .map(|s| s.split(':').next().unwrap_or(s))
-        .filter(|s| !s.is_empty())
-        .map(|s| s.to_string())
+    let marker = "/models/";
+    let start = endpoint.find(marker)? + marker.len();
+    let tail = &endpoint[start..];
+    let end = tail.find([':', '?']).unwrap_or(tail.len());
+    let encoded = &tail[..end];
+    if encoded.is_empty() {
+        return None;
+    }
+    Some(percent_decode_gemini_model_id(encoded))
+}
+
+fn percent_decode_gemini_model_id(value: &str) -> String {
+    let mut bytes = Vec::with_capacity(value.len());
+    let raw = value.as_bytes();
+    let mut index = 0;
+    while index < raw.len() {
+        if raw[index] == b'%' && index + 2 < raw.len() {
+            if let Ok(decoded) = u8::from_str_radix(&value[index + 1..index + 3], 16) {
+                bytes.push(decoded);
+                index += 3;
+                continue;
+            }
+        }
+        bytes.push(raw[index]);
+        index += 1;
+    }
+    String::from_utf8(bytes).unwrap_or_else(|_| value.to_string())
 }
 
 #[cfg(test)]
@@ -333,6 +350,15 @@ mod tests {
             extract_gemini_model_from_path("/gemini/v1beta/models/gemini-2.0-flash:countTokens")
                 .as_deref(),
             Some("gemini-2.0-flash"),
+        );
+    }
+
+    #[test]
+    fn extract_percent_encoded_model_with_slash() {
+        assert_eq!(
+            extract_gemini_model_from_path("/v1beta/models/claude-qd%2Fauto:generateContent")
+                .as_deref(),
+            Some("claude-qd/auto"),
         );
     }
 

@@ -186,6 +186,62 @@ impl Database {
         let mut meta_clone = provider.meta.clone().unwrap_or_default();
         let endpoints = std::mem::take(&mut meta_clone.custom_endpoints);
 
+        // A single provider owns the global `/v1/models` passthrough. Clear the
+        // flag from every other provider atomically before saving the new owner.
+        if meta_clone
+            .model_list_proxy
+            .as_ref()
+            .is_some_and(|config| config.is_global_source)
+        {
+            let mut stmt = tx
+                .prepare("SELECT id, app_type, meta FROM providers")
+                .map_err(|e| AppError::Database(e.to_string()))?;
+            let rows = stmt
+                .query_map([], |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                    ))
+                })
+                .map_err(|e| AppError::Database(e.to_string()))?;
+            let mut updates = Vec::new();
+            for row in rows {
+                let (other_id, other_app, raw_meta) =
+                    row.map_err(|e| AppError::Database(e.to_string()))?;
+                if other_id == provider.id && other_app == app_type {
+                    continue;
+                }
+                let mut other_meta: ProviderMeta =
+                    serde_json::from_str(&raw_meta).unwrap_or_default();
+                let Some(config) = other_meta.model_list_proxy.as_mut() else {
+                    continue;
+                };
+                if !config.is_global_source {
+                    continue;
+                }
+                config.is_global_source = false;
+                if config.is_effectively_empty() {
+                    other_meta.model_list_proxy = None;
+                }
+                updates.push((
+                    serde_json::to_string(&other_meta).map_err(|e| {
+                        AppError::Database(format!("Failed to serialize meta: {e}"))
+                    })?,
+                    other_id,
+                    other_app,
+                ));
+            }
+            drop(stmt);
+            for (raw_meta, other_id, other_app) in updates {
+                tx.execute(
+                    "UPDATE providers SET meta = ?1 WHERE id = ?2 AND app_type = ?3",
+                    params![raw_meta, other_id, other_app],
+                )
+                .map_err(|e| AppError::Database(e.to_string()))?;
+            }
+        }
+
         let existing: Option<(bool, bool)> = tx
             .query_row(
                 "SELECT is_current, in_failover_queue FROM providers WHERE id = ?1 AND app_type = ?2",

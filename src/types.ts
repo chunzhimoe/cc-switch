@@ -168,8 +168,18 @@ export interface LocalProxyRequestOverrides {
   body?: Record<string, unknown>;
 }
 
+export interface ModelListProxyConfig {
+  /** Use this provider as the unique global `/v1/models` source. */
+  isGlobalSource: boolean;
+  /** Exact upstream models endpoint; empty derives it from the provider base URL. */
+  modelsUrl?: string;
+  /** Prefix hidden in model-list responses and restored on outbound requests. */
+  stripPrefix?: string;
+}
+
 // 供应商元数据（字段名与后端一致，保持 snake_case）
 export interface ProviderMeta {
+  modelListProxy?: ModelListProxyConfig;
   // 自定义端点：以 URL 为键，值为端点信息
   custom_endpoints?: Record<string, CustomEndpoint>;
   // 是否在切换/同步到 live 时应用通用配置片段

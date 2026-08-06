@@ -1294,7 +1294,14 @@
     "pricingModelSourceInherit": "Inherit global default",
     "pricingModelSourceRequest": "Request model",
     "pricingModelSourceResponse": "Response model",
-    "pricingModelSourceHint": "Choose whether to match pricing by request model or response model"
+    "pricingModelSourceHint": "Choose whether to match pricing by request model or response model",
+    "modelListProxy": "Global Models Proxy",
+    "useAsGlobalModelsSource": "Use as global source",
+    "modelListProxyDesc": "Expose this provider's complete models response at local /v1/models and rewrite public model names. Only one provider can be enabled globally.",
+    "modelsUrl": "Models API URL",
+    "modelsUrlHint": "Optional. When empty, derive /v1/models or /models from the provider Base URL.",
+    "stripModelPrefix": "Remove model prefix",
+    "stripModelPrefixHint": "For example, claude-qd/auto is shown as qd/auto; outbound requests automatically restore the original prefix."
   },
   "codexConfig": {
     "authJson": "auth.json (JSON) *",

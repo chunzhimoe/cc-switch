@@ -1294,7 +1294,14 @@
     "pricingModelSourceInherit": "继承全局默认",
     "pricingModelSourceRequest": "请求模型",
     "pricingModelSourceResponse": "返回模型",
-    "pricingModelSourceHint": "选择按请求模型还是返回模型进行定价匹配"
+    "pricingModelSourceHint": "选择按请求模型还是返回模型进行定价匹配",
+    "modelListProxy": "全局 Models 代理",
+    "useAsGlobalModelsSource": "作为全局数据源",
+    "modelListProxyDesc": "将该供应商的完整 models 响应暴露到本地 /v1/models，并自动转换公开模型名称。全局只能启用一个供应商。",
+    "modelsUrl": "Models API 地址",
+    "modelsUrlHint": "可留空，将根据供应商 Base URL 自动推导 /v1/models 或 /models。",
+    "stripModelPrefix": "删除模型名前缀",
+    "stripModelPrefixHint": "例如 claude-qd/auto 将显示为 qd/auto；实际请求会自动恢复原始前缀。"
   },
   "codexConfig": {
     "authJson": "auth.json (JSON) *",

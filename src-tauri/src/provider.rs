@@ -407,9 +407,38 @@ impl LocalProxyRequestOverrides {
     }
 }
 
+/// Provider-backed global `/v1/models` proxy configuration.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelListProxyConfig {
+    /// Designate this provider as the single global model-list source.
+    #[serde(default)]
+    pub is_global_source: bool,
+    /// Optional exact models endpoint. Empty/absent derives it from the base URL.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub models_url: Option<String>,
+    /// Prefix hidden from clients and restored on outbound model requests.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub strip_prefix: Option<String>,
+}
+
+impl ModelListProxyConfig {
+    pub fn is_effectively_empty(&self) -> bool {
+        !self.is_global_source
+            && self.models_url.as_deref().is_none_or(|value| value.trim().is_empty())
+            && self.strip_prefix.as_deref().is_none_or(|value| value.is_empty())
+    }
+}
+
 /// 供应商元数据
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ProviderMeta {
+    /// Global third-party model-list passthrough and public-id prefix rewrite.
+    #[serde(
+        rename = "modelListProxy",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub model_list_proxy: Option<ModelListProxyConfig>,
     /// 自定义端点列表（按 URL 去重存储）
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub custom_endpoints: HashMap<String, crate::settings::CustomEndpoint>,

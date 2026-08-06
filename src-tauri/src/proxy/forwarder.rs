@@ -1156,15 +1156,34 @@ impl RequestForwarder {
             validate_codex_official_authorization(headers)?;
         }
 
+        // Restore a public model id returned by the global /v1/models proxy before
+        // app-specific route/tier/catalog mapping runs. Refresh the short-lived
+        // model map on demand when the client starts with a remembered short id.
+        let mut body = body.clone();
+        let restored_global_model =
+            super::global_model_proxy::restore_body_model_with_refresh(
+                self.router.db().as_ref(),
+                &mut body,
+            )
+            .await?;
+
         // 应用模型映射（独立于格式转换）
         // Claude Desktop proxy 模式必须先把 Desktop 可见的 claude-* route
         // 映射成真实上游模型名，并且未知 route 要直接报错，不能使用默认模型兜底。
-        let mapped_body = if matches!(app_type, AppType::ClaudeDesktop) {
-            crate::claude_desktop_config::map_proxy_request_model(body.clone(), provider)
+        // Global models are already restored to an exact upstream id and bypass
+        // the Desktop route table, which only knows locally configured routes.
+        let mapped_body = if matches!(app_type, AppType::ClaudeDesktop) && !restored_global_model {
+            crate::claude_desktop_config::map_proxy_request_model(body, provider)
                 .map_err(|e| ProxyError::InvalidRequest(e.to_string()))?
+        } else if matches!(app_type, AppType::ClaudeDesktop) {
+            body
+        } else if restored_global_model {
+            // Exact upstream id from the global models response wins over Claude
+            // tier/default mappings configured for the provider.
+            body
         } else {
             let (mapped_body, _original_model, _mapped_model) =
-                super::model_mapper::apply_model_mapping(body.clone(), provider);
+                super::model_mapper::apply_model_mapping(body, provider);
             mapped_body
         };
 
@@ -1174,7 +1193,7 @@ impl RequestForwarder {
         // Grok Build exposes a stable client-side model profile in config.toml.
         // Route requests to the provider's real upstream model before applying
         // the optional Responses -> Chat/Anthropic bridge.
-        if matches!(app_type, AppType::GrokBuild) {
+        if matches!(app_type, AppType::GrokBuild) && !restored_global_model {
             super::providers::apply_codex_upstream_model(provider, &mut mapped_body);
         }
 

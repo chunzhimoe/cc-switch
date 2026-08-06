@@ -317,7 +317,12 @@ pub fn apply_codex_upstream_model(provider: &Provider, body: &mut JsonValue) -> 
         .map(str::trim)
         .filter(|model| !model.is_empty())
     {
-        if catalog_model_ids.contains(request_model) {
+        // A model restored from the global /v1/models response is already an
+        // exact upstream id. Preserve it even when the provider's static Codex
+        // catalog does not enumerate that dynamically fetched model.
+        if crate::proxy::global_model_proxy::is_known_upstream_model(request_model)
+            || catalog_model_ids.contains(request_model)
+        {
             return Some(request_model.to_string());
         }
     }

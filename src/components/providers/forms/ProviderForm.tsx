@@ -331,6 +331,11 @@ function ProviderFormFull({
       initialData?.meta?.pricingModelSource,
     ),
   }));
+  const [modelListProxy, setModelListProxy] = useState(() => ({
+    isGlobalSource: initialData?.meta?.modelListProxy?.isGlobalSource ?? false,
+    modelsUrl: initialData?.meta?.modelListProxy?.modelsUrl ?? "",
+    stripPrefix: initialData?.meta?.modelListProxy?.stripPrefix ?? "",
+  }));
 
   const { category } = useProviderCategory({
     appId,
@@ -361,6 +366,12 @@ function ProviderFormFull({
       pricingModelSource: normalizePricingSource(
         initialData?.meta?.pricingModelSource,
       ),
+    });
+    setModelListProxy({
+      isGlobalSource:
+        initialData?.meta?.modelListProxy?.isGlobalSource ?? false,
+      modelsUrl: initialData?.meta?.modelListProxy?.modelsUrl ?? "",
+      stripPrefix: initialData?.meta?.modelListProxy?.stripPrefix ?? "",
     });
     setCodexChatReasoning(initialData?.meta?.codexChatReasoning ?? {});
     setPromptCacheRouting(initialData?.meta?.promptCacheRouting ?? "auto");
@@ -1609,6 +1620,16 @@ function ProviderFormFull({
         pricingConfig.enabled && pricingConfig.pricingModelSource !== "inherit"
           ? pricingConfig.pricingModelSource
           : undefined,
+      modelListProxy:
+        modelListProxy.isGlobalSource ||
+        modelListProxy.modelsUrl.trim() !== "" ||
+        modelListProxy.stripPrefix !== ""
+          ? {
+              isGlobalSource: modelListProxy.isGlobalSource,
+              modelsUrl: modelListProxy.modelsUrl.trim() || undefined,
+              stripPrefix: modelListProxy.stripPrefix || undefined,
+            }
+          : undefined,
       apiFormat:
         appId === "claude" && category !== "official"
           ? isXaiOauthProvider
@@ -2602,6 +2623,8 @@ function ProviderFormFull({
               <ProviderAdvancedConfig
                 pricingConfig={pricingConfig}
                 onPricingConfigChange={setPricingConfig}
+                modelListProxy={modelListProxy}
+                onModelListProxyChange={setModelListProxy}
               />
             )}
 
