@@ -70,7 +70,9 @@ pub fn find_global_source(db: &Database) -> Result<Option<GlobalModelSource>, Pr
 }
 
 pub async fn fetch_global_models(db: &Database) -> Result<Option<Value>, ProxyError> {
-    Ok(fetch_global_snapshot(db).await?.map(|snapshot| snapshot.response))
+    Ok(fetch_global_snapshot(db)
+        .await?
+        .map(|snapshot| snapshot.response))
 }
 
 pub async fn fetch_global_snapshot(
@@ -133,9 +135,7 @@ async fn ensure_active_cache(db: &Database) -> Result<bool, ProxyError> {
         .lock()
         .expect("global model cache poisoned")
         .as_ref()
-        .is_some_and(|cached| {
-            cached.key == active_key && cached.fetched_at.elapsed() < CACHE_TTL
-        });
+        .is_some_and(|cached| cached.key == active_key && cached.fetched_at.elapsed() < CACHE_TTL);
     if !cache_is_current {
         fetch_global_snapshot(db).await?;
     }
@@ -155,7 +155,12 @@ pub fn is_known_upstream_model(model: &str) -> bool {
         .lock()
         .expect("global model cache poisoned")
         .as_ref()
-        .is_some_and(|cached| cached.public_to_upstream.values().any(|value| value == base))
+        .is_some_and(|cached| {
+            cached
+                .public_to_upstream
+                .values()
+                .any(|value| value == base)
+        })
 }
 
 pub fn restore_body_model(body: &mut Value) -> bool {
@@ -282,7 +287,10 @@ async fn fetch_and_transform(
 
     let mut last_error = None;
     for url in candidates {
-        log::debug!("[GlobalModels] fetching {}", crate::redact_url_for_log(&url));
+        log::debug!(
+            "[GlobalModels] fetching {}",
+            crate::redact_url_for_log(&url)
+        );
         let mut request = crate::proxy::http_client::get()
             .get(&url)
             .timeout(FETCH_TIMEOUT);
@@ -290,7 +298,10 @@ async fn fetch_and_transform(
         // authentication even when their message endpoint accepts x-api-key.
         // Preserve Google/OAuth-specific headers; normalize plain static keys
         // to Bearer to match the existing provider-form model fetch behavior.
-        if matches!(auth.strategy, AuthStrategy::Google | AuthStrategy::GoogleOAuth) {
+        if matches!(
+            auth.strategy,
+            AuthStrategy::Google | AuthStrategy::GoogleOAuth
+        ) {
             for (name, value) in &auth_headers {
                 request = request.header(name, value);
             }
@@ -381,7 +392,10 @@ fn transform_model_object(value: &mut Value, prefix: &str, mapping: &mut HashMap
     };
 
     if let Some(original) = object.get("id").and_then(Value::as_str).map(str::to_string) {
-        let public = original.strip_prefix(prefix).unwrap_or(&original).to_string();
+        let public = original
+            .strip_prefix(prefix)
+            .unwrap_or(&original)
+            .to_string();
         mapping.insert(public.clone(), original);
         object.insert("id".to_string(), Value::String(public));
     }
@@ -390,7 +404,10 @@ fn transform_model_object(value: &mut Value, prefix: &str, mapping: &mut HashMap
         let Some(original) = object.get(key).and_then(Value::as_str) else {
             continue;
         };
-        let public = original.strip_prefix(prefix).unwrap_or(original).to_string();
+        let public = original
+            .strip_prefix(prefix)
+            .unwrap_or(original)
+            .to_string();
         object.insert(key.to_string(), Value::String(public));
     }
 }
@@ -447,8 +464,14 @@ mod tests {
         assert_eq!(response["data"][0]["id"], "qd/auto");
         assert_eq!(response["data"][0]["real_id"], "qd/auto");
         assert_eq!(response["data"][0]["display_name"], "qd/auto");
-        assert_eq!(response["data"][0]["capabilities"]["id"], "claude-capability");
-        assert_eq!(mapping.get("qd/auto").map(String::as_str), Some("claude-qd/auto"));
+        assert_eq!(
+            response["data"][0]["capabilities"]["id"],
+            "claude-capability"
+        );
+        assert_eq!(
+            mapping.get("qd/auto").map(String::as_str),
+            Some("claude-qd/auto")
+        );
     }
 
     #[test]

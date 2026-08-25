@@ -80,9 +80,7 @@ pub async fn get_status(State(state): State<ProxyState>) -> Result<Json<ProxySta
 /// Only serves the catalog when the live config.toml still references the
 /// cc-switch–owned `model_catalog_json`, using the same path ownership rules as
 /// Codex live-setting import.
-pub async fn handle_models(
-    State(state): State<ProxyState>,
-) -> Result<Json<Value>, ProxyError> {
+pub async fn handle_models(State(state): State<ProxyState>) -> Result<Json<Value>, ProxyError> {
     if let Some(models) = super::global_model_proxy::fetch_global_models(&state.db).await? {
         return Ok(Json(models));
     }
@@ -1939,7 +1937,10 @@ pub async fn handle_gemini(
     // All clients share the explicitly configured global model-list source.
     // Preserve Gemini's native passthrough when no source is configured.
     if method == axum::http::Method::GET
-        && matches!(uri.path(), "/v1beta/models" | "/gemini/v1beta/models" | "/gemini/v1/models")
+        && matches!(
+            uri.path(),
+            "/v1beta/models" | "/gemini/v1beta/models" | "/gemini/v1/models"
+        )
     {
         if let Some(models) = super::global_model_proxy::fetch_global_models(&state.db).await? {
             return Ok(Json(models).into_response());
@@ -1971,11 +1972,12 @@ pub async fn handle_gemini(
         .map(|pq| pq.as_str())
         .unwrap_or(uri.path());
     let restored_endpoint =
-        super::global_model_proxy::restore_gemini_endpoint_with_refresh(&state.db, endpoint).await?;
+        super::global_model_proxy::restore_gemini_endpoint_with_refresh(&state.db, endpoint)
+            .await?;
     let endpoint = restored_endpoint.as_deref().unwrap_or(endpoint);
     if let Some(restored) = restored_endpoint.as_ref() {
-        ctx.request_model = extract_gemini_model_from_path(restored)
-            .unwrap_or_else(|| ctx.request_model.clone());
+        ctx.request_model =
+            extract_gemini_model_from_path(restored).unwrap_or_else(|| ctx.request_model.clone());
     }
 
     let is_stream = body

@@ -425,8 +425,14 @@ pub struct ModelListProxyConfig {
 impl ModelListProxyConfig {
     pub fn is_effectively_empty(&self) -> bool {
         !self.is_global_source
-            && self.models_url.as_deref().is_none_or(|value| value.trim().is_empty())
-            && self.strip_prefix.as_deref().is_none_or(|value| value.is_empty())
+            && self
+                .models_url
+                .as_deref()
+                .is_none_or(|value| value.trim().is_empty())
+            && self
+                .strip_prefix
+                .as_deref()
+                .is_none_or(|value| value.is_empty())
     }
 }
 
@@ -434,10 +440,7 @@ impl ModelListProxyConfig {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ProviderMeta {
     /// Global third-party model-list passthrough and public-id prefix rewrite.
-    #[serde(
-        rename = "modelListProxy",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "modelListProxy", skip_serializing_if = "Option::is_none")]
     pub model_list_proxy: Option<ModelListProxyConfig>,
     /// 自定义端点列表（按 URL 去重存储）
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]

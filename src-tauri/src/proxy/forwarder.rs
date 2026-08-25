@@ -1160,12 +1160,11 @@ impl RequestForwarder {
         // app-specific route/tier/catalog mapping runs. Refresh the short-lived
         // model map on demand when the client starts with a remembered short id.
         let mut body = body.clone();
-        let restored_global_model =
-            super::global_model_proxy::restore_body_model_with_refresh(
-                self.router.db().as_ref(),
-                &mut body,
-            )
-            .await?;
+        let restored_global_model = super::global_model_proxy::restore_body_model_with_refresh(
+            self.router.db().as_ref(),
+            &mut body,
+        )
+        .await?;
 
         // 应用模型映射（独立于格式转换）
         // Claude Desktop proxy 模式必须先把 Desktop 可见的 claude-* route
