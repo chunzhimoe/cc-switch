@@ -3,7 +3,17 @@ import type { PricingModelSourceOption } from "../ProviderAdvancedConfig";
 
 // ── Default configs ──────────────────────────────────────────────────
 
-export const CLAUDE_DEFAULT_CONFIG = JSON.stringify({ env: {} }, null, 2);
+export const CLAUDE_DEFAULT_CONFIG = JSON.stringify(
+  {
+    env: {
+      CLAUDE_CODE_MAX_CONTEXT_TOKENS: "400000",
+      CLAUDE_CODE_AUTO_COMPACT_WINDOW: "400000",
+    },
+    autoCompactWindow: 400000,
+  },
+  null,
+  2,
+);
 export const CLAUDE_DESKTOP_DEFAULT_CONFIG = JSON.stringify(
   {
     env: {

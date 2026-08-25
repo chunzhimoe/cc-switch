@@ -91,6 +91,9 @@ import {
   useApiKeyState,
   useBaseUrlState,
   useModelState,
+  applyClaudeContextWindowConfig,
+  isPositiveIntegerString,
+  useClaudeCompactWindowState,
   useCodexConfigState,
   useApiKeyLink,
   useTemplateValues,
@@ -425,6 +428,7 @@ function ProviderFormFull({
     },
     [form],
   );
+  const watchedSettingsConfig = form.watch("settingsConfig");
 
   const [localApiKeyField, setLocalApiKeyField] = useState<ClaudeApiKeyField>(
     () => {
@@ -489,6 +493,18 @@ function ProviderFormFull({
     handleModelChange,
   } = useModelState({
     settingsConfig: form.getValues("settingsConfig"),
+    onConfigChange: handleSettingsConfigChange,
+  });
+
+  const {
+    claudeCodeMaxContextTokens,
+    claudeCodeAutoCompactWindow,
+    autoCompactWindow,
+    handleClaudeCodeMaxContextTokensChange,
+    handleClaudeCodeAutoCompactWindowChange,
+    handleAutoCompactWindowChange,
+  } = useClaudeCompactWindowState({
+    settingsConfig: watchedSettingsConfig,
     onConfigChange: handleSettingsConfigChange,
   });
 
@@ -1086,6 +1102,41 @@ function ProviderFormFull({
       return;
     }
 
+    if (appId === "claude") {
+      const contextWindowFields = [
+        {
+          value: claudeCodeMaxContextTokens,
+          label: t("providerForm.claudeCodeMaxContextTokensLabel", {
+            defaultValue: "Claude Code 模型上下文上限",
+          }),
+        },
+        {
+          value: claudeCodeAutoCompactWindow,
+          label: t("providerForm.claudeCodeAutoCompactWindowLabel", {
+            defaultValue: "环境变量自动压缩窗口",
+          }),
+        },
+        {
+          value: autoCompactWindow,
+          label: t("providerForm.autoCompactWindowLabel", {
+            defaultValue: "settings.json 自动压缩窗口",
+          }),
+        },
+      ];
+      const invalidField = contextWindowFields.find(
+        ({ value }) => !isPositiveIntegerString(value),
+      );
+      if (invalidField) {
+        toast.error(
+          t("providerForm.contextWindowPositiveIntegerRequired", {
+            field: invalidField.label,
+            defaultValue: `${invalidField.label}必须是正整数`,
+          }),
+        );
+        return;
+      }
+    }
+
     // opencode / openclaw / hermes: providerKey 相关
     // A 类（空）归到 issues；B 类（正则不合法 / 重复 / 状态加载中）仍硬拒绝
     const keyPattern = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -1432,6 +1483,13 @@ function ProviderFormFull({
       } catch (err) {
         settingsConfig = values.settingsConfig.trim();
       }
+    } else if (appId === "claude") {
+      settingsConfig = applyClaudeContextWindowConfig(
+        values.settingsConfig.trim(),
+        claudeCodeMaxContextTokens,
+        claudeCodeAutoCompactWindow,
+        autoCompactWindow,
+      );
     } else if (
       appId === "opencode" &&
       (category === "omo" || category === "omo-slim")
@@ -2281,6 +2339,16 @@ function ProviderFormFull({
               defaultFableModelName={defaultFableModelName}
               subagentModel={subagentModel}
               onModelChange={handleModelChange}
+              claudeCodeMaxContextTokens={claudeCodeMaxContextTokens}
+              onClaudeCodeMaxContextTokensChange={
+                handleClaudeCodeMaxContextTokensChange
+              }
+              claudeCodeAutoCompactWindow={claudeCodeAutoCompactWindow}
+              onClaudeCodeAutoCompactWindowChange={
+                handleClaudeCodeAutoCompactWindowChange
+              }
+              autoCompactWindow={autoCompactWindow}
+              onAutoCompactWindowChange={handleAutoCompactWindowChange}
               speedTestEndpoints={speedTestEndpoints}
               apiFormat={localApiFormat}
               onApiFormatChange={handleApiFormatChange}

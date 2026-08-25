@@ -62,6 +62,7 @@ import {
   stripClaudeOneMMarker,
   type ClaudeModelEnvField,
 } from "./hooks/useModelState";
+import { DEFAULT_CLAUDE_CONTEXT_WINDOW } from "./hooks/useClaudeCompactWindowState";
 import {
   providerPresets,
   type TemplateValueConfig,
@@ -137,6 +138,14 @@ interface ClaudeFormFieldsProps {
   subagentModel: string;
   onModelChange: (field: ClaudeModelEnvField, value: string) => void;
 
+  // Claude Code context/compact-window settings (three independent values)
+  claudeCodeMaxContextTokens: string;
+  onClaudeCodeMaxContextTokensChange: (value: string) => void;
+  claudeCodeAutoCompactWindow: string;
+  onClaudeCodeAutoCompactWindowChange: (value: string) => void;
+  autoCompactWindow: string;
+  onAutoCompactWindowChange: (value: string) => void;
+
   // Speed Test Endpoints
   speedTestEndpoints: EndpointCandidate[];
 
@@ -211,6 +220,12 @@ export function ClaudeFormFields({
   defaultFableModelName,
   subagentModel,
   onModelChange,
+  claudeCodeMaxContextTokens,
+  onClaudeCodeMaxContextTokensChange,
+  claudeCodeAutoCompactWindow,
+  onClaudeCodeAutoCompactWindowChange,
+  autoCompactWindow,
+  onAutoCompactWindowChange,
   speedTestEndpoints,
   apiFormat,
   onApiFormatChange,
@@ -236,6 +251,9 @@ export function ClaudeFormFields({
     defaultOpusModel ||
     defaultFableModel ||
     subagentModel ||
+    claudeCodeMaxContextTokens !== DEFAULT_CLAUDE_CONTEXT_WINDOW ||
+    claudeCodeAutoCompactWindow !== DEFAULT_CLAUDE_CONTEXT_WINDOW ||
+    autoCompactWindow !== DEFAULT_CLAUDE_CONTEXT_WINDOW ||
     (!isXaiOauthPreset && apiFormat !== "anthropic") ||
     apiKeyField !== "ANTHROPIC_AUTH_TOKEN" ||
     customUserAgent ||
@@ -892,6 +910,101 @@ export function ClaudeFormFields({
                   defaultValue: "选择写入配置的认证环境变量名",
                 })}
               </p>
+            </div>
+
+            {/* 上下文上限与两个自动压缩窗口独立配置 */}
+            <div className="space-y-3 border-t pt-4">
+              <FormLabel>
+                {t("providerForm.contextWindowSectionLabel", {
+                  defaultValue: "上下文与自动压缩",
+                })}
+              </FormLabel>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <FormLabel htmlFor="claudeCodeMaxContextTokens">
+                    {t("providerForm.claudeCodeMaxContextTokensLabel", {
+                      defaultValue: "Claude Code 模型上下文上限",
+                    })}
+                  </FormLabel>
+                  <Input
+                    id="claudeCodeMaxContextTokens"
+                    type="number"
+                    min={1}
+                    step={1}
+                    inputMode="numeric"
+                    value={claudeCodeMaxContextTokens}
+                    onChange={(event) =>
+                      onClaudeCodeMaxContextTokensChange(
+                        event.target.value.replace(/[^\d]/g, ""),
+                      )
+                    }
+                    placeholder="400000"
+                    autoComplete="off"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {t("providerForm.claudeCodeMaxContextTokensHint", {
+                      defaultValue:
+                        "写入 env.CLAUDE_CODE_MAX_CONTEXT_TOKENS，按字符串保存，明确声明模型上下文上限。",
+                    })}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <FormLabel htmlFor="claudeCodeAutoCompactWindow">
+                    {t("providerForm.claudeCodeAutoCompactWindowLabel", {
+                      defaultValue: "环境变量自动压缩窗口",
+                    })}
+                  </FormLabel>
+                  <Input
+                    id="claudeCodeAutoCompactWindow"
+                    type="number"
+                    min={1}
+                    step={1}
+                    inputMode="numeric"
+                    value={claudeCodeAutoCompactWindow}
+                    onChange={(event) =>
+                      onClaudeCodeAutoCompactWindowChange(
+                        event.target.value.replace(/[^\d]/g, ""),
+                      )
+                    }
+                    placeholder="400000"
+                    autoComplete="off"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {t("providerForm.claudeCodeAutoCompactWindowHint", {
+                      defaultValue:
+                        "写入 env.CLAUDE_CODE_AUTO_COMPACT_WINDOW，按字符串保存。",
+                    })}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <FormLabel htmlFor="autoCompactWindow">
+                    {t("providerForm.autoCompactWindowLabel", {
+                      defaultValue: "settings.json 自动压缩窗口",
+                    })}
+                  </FormLabel>
+                  <Input
+                    id="autoCompactWindow"
+                    type="number"
+                    min={1}
+                    step={1}
+                    inputMode="numeric"
+                    value={autoCompactWindow}
+                    onChange={(event) =>
+                      onAutoCompactWindowChange(
+                        event.target.value.replace(/[^\d]/g, ""),
+                      )
+                    }
+                    placeholder="400000"
+                    autoComplete="off"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {t("providerForm.autoCompactWindowHint", {
+                      defaultValue:
+                        "写入顶层 autoCompactWindow，按数字保存；与两个环境变量互不联动。",
+                    })}
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* 模型映射 */}

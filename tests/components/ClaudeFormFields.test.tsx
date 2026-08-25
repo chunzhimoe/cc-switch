@@ -87,6 +87,12 @@ const renderCopilotForm = (overrides: Partial<ClaudeFormFieldsProps> = {}) => {
     defaultFableModelName: "",
     subagentModel: "",
     onModelChange: vi.fn(),
+    claudeCodeMaxContextTokens: "400000",
+    onClaudeCodeMaxContextTokensChange: vi.fn(),
+    claudeCodeAutoCompactWindow: "400000",
+    onClaudeCodeAutoCompactWindowChange: vi.fn(),
+    autoCompactWindow: "400000",
+    onAutoCompactWindowChange: vi.fn(),
     speedTestEndpoints: [],
     apiFormat: "anthropic",
     onApiFormatChange: vi.fn(),
@@ -173,6 +179,31 @@ describe("ClaudeFormFields", () => {
         "chatgpt-1",
       );
     });
+  });
+
+  it("三个上下文窗口字段保持独立回调", () => {
+    const onMaxContextChange = vi.fn();
+    const onEnvCompactChange = vi.fn();
+    const onTopLevelCompactChange = vi.fn();
+    renderCopilotForm({
+      onClaudeCodeMaxContextTokensChange: onMaxContextChange,
+      onClaudeCodeAutoCompactWindowChange: onEnvCompactChange,
+      onAutoCompactWindowChange: onTopLevelCompactChange,
+    });
+
+    fireEvent.change(screen.getByLabelText("Claude Code 模型上下文上限"), {
+      target: { value: "410000" },
+    });
+    fireEvent.change(screen.getByLabelText("环境变量自动压缩窗口"), {
+      target: { value: "420000" },
+    });
+    fireEvent.change(screen.getByLabelText("settings.json 自动压缩窗口"), {
+      target: { value: "430000" },
+    });
+
+    expect(onMaxContextChange).toHaveBeenCalledWith("410000");
+    expect(onEnvCompactChange).toHaveBeenCalledWith("420000");
+    expect(onTopLevelCompactChange).toHaveBeenCalledWith("430000");
   });
 
   it("一键设置会同时写入 Subagent 模型", () => {

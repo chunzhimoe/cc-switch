@@ -1193,6 +1193,7 @@ GEMINI_TIMEOUT_MS=30000
             },
             "apiKey": "sk-top",
             "api_key": "sk-top2",
+            "autoCompactWindow": 400000,
             "theme": "dark",
             "includeCoAuthoredBy": false
         });
@@ -1238,6 +1239,7 @@ GEMINI_TIMEOUT_MS=30000
         assert!(env
             .and_then(|e| e.get("CLAUDE_CODE_AUTO_COMPACT_WINDOW"))
             .is_none());
+        assert!(value.get("autoCompactWindow").is_none());
 
         // 可共享的非机密配置必须保留（含复数 _TOKENS 不被误剥）
         assert_eq!(
@@ -3608,6 +3610,7 @@ impl ProviderService {
 
         const TOP_LEVEL_EXCLUDES: &[&str] = &[
             "apiBaseUrl",
+            "autoCompactWindow",
             // Legacy model fields
             "primaryModel",
             "smallFastModel",
