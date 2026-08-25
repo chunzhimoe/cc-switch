@@ -1160,6 +1160,7 @@ impl RequestForwarder {
         // app-specific route/tier/catalog mapping runs. Refresh the short-lived
         // model map on demand when the client starts with a remembered short id.
         let mut body = body.clone();
+        let original_metadata = body.get("metadata").cloned();
         let restored_global_model = super::global_model_proxy::restore_body_model_with_refresh(
             self.router.db().as_ref(),
             &mut body,
@@ -1267,7 +1268,7 @@ impl RequestForwarder {
             //   2. metadata.session_id（直接字段）
             //   3. raw metadata.user_id（整串 fallback）
             //   4. x-session-id header
-            let metadata = body.get("metadata");
+            let metadata = original_metadata.as_ref();
             let session_id = metadata
                 .and_then(|m| m.get("user_id"))
                 .and_then(|v| v.as_str())

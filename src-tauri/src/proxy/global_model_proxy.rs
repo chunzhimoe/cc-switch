@@ -4,7 +4,7 @@ use crate::app_config::AppType;
 use crate::database::Database;
 use crate::provider::{ModelListProxyConfig, Provider};
 use crate::proxy::error::ProxyError;
-use crate::proxy::providers::{get_adapter, AuthStrategy, ProviderAdapter};
+use crate::proxy::providers::{get_adapter, AuthStrategy};
 use reqwest::header::USER_AGENT;
 use reqwest::StatusCode;
 use serde_json::Value;
