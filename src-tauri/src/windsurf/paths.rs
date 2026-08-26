@@ -41,10 +41,6 @@ pub fn state_db_path() -> Result<PathBuf, AppError> {
     Ok(state_db_under(&user_data_dir()?))
 }
 
-pub fn local_state_path() -> Result<PathBuf, AppError> {
-    Ok(user_data_dir()?.join("Local State"))
-}
-
 pub fn rules_path() -> Result<PathBuf, AppError> {
     dirs::home_dir()
         .map(|home| {

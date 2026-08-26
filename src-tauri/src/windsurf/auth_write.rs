@@ -127,10 +127,10 @@ fn upsert_extension_state(
         } else {
             object.remove("windsurf.pendingApiKeyMigration");
         }
-        if !object
+        if object
             .get("codeium.installationId")
             .and_then(Value::as_str)
-            .is_some_and(|value| !value.trim().is_empty())
+            .is_none_or(|value| value.trim().is_empty())
         {
             object.insert(
                 "codeium.installationId".to_string(),
