@@ -55,7 +55,10 @@ fn client() -> Result<Client, String> {
         .map_err(|error| format!("构建 Windsurf 登录客户端失败: {error}"))
 }
 
-pub async fn login_with_password(email: &str, password: &str) -> Result<PasswordLoginResult, String> {
+pub async fn login_with_password(
+    email: &str,
+    password: &str,
+) -> Result<PasswordLoginResult, String> {
     let email = email.trim();
     if email.is_empty() || password.is_empty() {
         return Err("邮箱和密码不能为空".to_string());
@@ -84,8 +87,8 @@ pub async fn login_with_password(email: &str, password: &str) -> Result<Password
             code => format!("Devin 登录失败 (HTTP {code})"),
         });
     }
-    let parsed: PasswordLoginResponse = serde_json::from_str(&body)
-        .map_err(|error| format!("解析 Devin 登录响应失败: {error}"))?;
+    let parsed: PasswordLoginResponse =
+        serde_json::from_str(&body).map_err(|error| format!("解析 Devin 登录响应失败: {error}"))?;
     let auth1_token = parsed
         .token
         .filter(|token| token.starts_with("auth1_"))
@@ -106,24 +109,17 @@ pub async fn full_refresh_from_auth1(auth1_token: &str) -> Result<FullRefreshRes
     let (session_token, auth1, account_id, org_id) = post_auth(&http, auth1_token).await?;
     let ott = get_ott(&http, &session_token, &auth1, &account_id, &org_id).await?;
     let ide_token = register_user(&http, &ott).await?;
-    let (user_status_proto_b64, user_status) = match get_current_user(
-        &http,
-        &ide_token,
-        &auth1,
-        &account_id,
-        &org_id,
-    )
-    .await
-    {
-        Ok(raw) => (
-            Some(base64::engine::general_purpose::STANDARD.encode(raw)),
-            None,
-        ),
-        Err(error) => {
-            log::warn!("Windsurf GetCurrentUser failed; continuing without proto: {error}");
-            (None, None)
-        }
-    };
+    let (user_status_proto_b64, user_status) =
+        match get_current_user(&http, &ide_token, &auth1, &account_id, &org_id).await {
+            Ok(raw) => (
+                Some(base64::engine::general_purpose::STANDARD.encode(raw)),
+                None,
+            ),
+            Err(error) => {
+                log::warn!("Windsurf GetCurrentUser failed; continuing without proto: {error}");
+                (None, None)
+            }
+        };
     Ok(FullRefreshResult {
         ide_token,
         session_token,
@@ -164,10 +160,7 @@ pub async fn fetch_user_status(ide_token: &str) -> Result<Value, String> {
     serde_json::from_str(&body).map_err(|error| format!("解析 GetUserStatus 响应失败: {error}"))
 }
 
-async fn post_auth(
-    http: &Client,
-    auth1: &str,
-) -> Result<(String, String, String, String), String> {
+async fn post_auth(http: &Client, auth1: &str) -> Result<(String, String, String, String), String> {
     let body = encode_string_field(1, auth1);
     let mut last_error = String::new();
     for attempt in 1..=3u64 {
@@ -285,7 +278,9 @@ async fn register_user(http: &Client, ott: &str) -> Result<String, String> {
             Ok(_) | Err(_) if attempt < 3 => {
                 tokio::time::sleep(Duration::from_millis(1500 * attempt)).await;
             }
-            Ok(response) => return Err(format!("RegisterUser HTTP {}", response.status().as_u16())),
+            Ok(response) => {
+                return Err(format!("RegisterUser HTTP {}", response.status().as_u16()))
+            }
             Err(error) => return Err(format!("RegisterUser 请求失败: {error}")),
         }
     }
@@ -318,7 +313,10 @@ async fn get_current_user(
         .await
         .map_err(|error| format!("GetCurrentUser 请求失败: {error}"))?;
     if !response.status().is_success() {
-        return Err(format!("GetCurrentUser HTTP {}", response.status().as_u16()));
+        return Err(format!(
+            "GetCurrentUser HTTP {}",
+            response.status().as_u16()
+        ));
     }
     response
         .bytes()

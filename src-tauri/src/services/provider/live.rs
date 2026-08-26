@@ -1167,7 +1167,10 @@ pub(crate) fn write_live_snapshot(app_type: &AppType, provider: &Provider) -> Re
         }
         AppType::Windsurf => {
             crate::windsurf::inject::inject_provider(provider)?;
-            log::info!("Windsurf account '{}' written to live auth state", provider.id);
+            log::info!(
+                "Windsurf account '{}' written to live auth state",
+                provider.id
+            );
         }
     }
     Ok(())

@@ -33,7 +33,8 @@ pub fn read_local_auth_status() -> Result<Option<Value>, AppError> {
             "Windsurf auth status exceeds the supported size".to_string(),
         ));
     }
-    let value: Value = serde_json::from_str(&raw).map_err(|error| AppError::json(&db_path, error))?;
+    let value: Value =
+        serde_json::from_str(&raw).map_err(|error| AppError::json(&db_path, error))?;
     if !value.is_object() {
         return Err(AppError::InvalidInput(
             "Windsurf auth status must be a JSON object".to_string(),
@@ -62,7 +63,11 @@ pub fn import_local_account() -> Result<WindsurfAccount, AppError> {
     })?;
     let session_token = first_string(object, &["sessionToken", "session_token"])
         .filter(|token| token.starts_with("devin-session-token$"))
-        .or_else(|| api_key.starts_with("devin-session-token$").then(|| api_key.clone()));
+        .or_else(|| {
+            api_key
+                .starts_with("devin-session-token$")
+                .then(|| api_key.clone())
+        });
     let auth_method = first_string(object, &["authMethod", "auth_method"]);
     let is_auth1 = session_token.is_some()
         || auth_method
@@ -109,10 +114,7 @@ pub fn import_local_account() -> Result<WindsurfAccount, AppError> {
         devin_account_id: first_string(object, &["accountId", "account_id"]),
         devin_org_id: first_string(object, &["primaryOrgId", "orgId", "org_id"]),
         devin_session_token: session_token,
-        devin_user_status_proto_b64: first_string(
-            object,
-            &["userStatusProtoBinaryBase64"],
-        ),
+        devin_user_status_proto_b64: first_string(object, &["userStatusProtoBinaryBase64"]),
         created_at: now,
         last_used: now,
     };

@@ -203,7 +203,10 @@ pub fn mark_last_used(account_id: &str) -> Result<(), AppError> {
     upsert_account(account).map(|_| ())
 }
 
-pub fn new_token_account(token: String, label: Option<String>) -> Result<WindsurfAccount, AppError> {
+pub fn new_token_account(
+    token: String,
+    label: Option<String>,
+) -> Result<WindsurfAccount, AppError> {
     let token = token.trim().to_string();
     if token.is_empty() {
         return Err(AppError::InvalidInput(
@@ -377,7 +380,12 @@ pub fn new_account_from_auth1_refresh(
 
 pub fn resolve_api_key(account: &WindsurfAccount) -> Option<String> {
     non_empty(account.windsurf_api_key.as_deref())
-        .or_else(|| string_from_value(account.windsurf_auth_status_raw.as_ref(), &["apiKey", "api_key"]))
+        .or_else(|| {
+            string_from_value(
+                account.windsurf_auth_status_raw.as_ref(),
+                &["apiKey", "api_key"],
+            )
+        })
         .or_else(|| {
             non_empty(Some(&account.github_access_token))
                 .filter(|token| token.starts_with("sk-ws-") || token.starts_with("cog_"))
@@ -405,7 +413,10 @@ pub fn resolve_session_token(account: &WindsurfAccount) -> Option<String> {
 
 pub fn uses_auth1(account: &WindsurfAccount) -> bool {
     account.windsurf_token_type.as_deref() == Some("devin-session")
-        || account.devin_auth1_token.as_deref().is_some_and(|value| value.starts_with("auth1_"))
+        || account
+            .devin_auth1_token
+            .as_deref()
+            .is_some_and(|value| value.starts_with("auth1_"))
         || account
             .windsurf_auth_token
             .as_deref()

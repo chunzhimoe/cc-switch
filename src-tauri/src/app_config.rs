@@ -135,8 +135,8 @@ impl SkillApps {
             AppType::GrokBuild => self.grokbuild = enabled,
             AppType::OpenCode => self.opencode = enabled,
             AppType::Hermes => self.hermes = enabled,
-            AppType::Windsurf => {} // Windsurf doesn't support Skills
-            AppType::OpenClaw => {} // OpenClaw doesn't support Skills, ignore
+            AppType::Windsurf => {}      // Windsurf doesn't support Skills
+            AppType::OpenClaw => {}      // OpenClaw doesn't support Skills, ignore
             AppType::ClaudeDesktop => {} // Claude Desktop 3P profiles don't use CC Switch skill sync
         }
     }

@@ -31,9 +31,8 @@ pub fn inject_provider(provider: &Provider) -> Result<(), AppError> {
 }
 
 pub fn inject_account(account_id: &str) -> Result<(), AppError> {
-    let account = load_account(account_id)?.ok_or_else(|| {
-        AppError::Message(format!("Windsurf account not found: {account_id}"))
-    })?;
+    let account = load_account(account_id)?
+        .ok_or_else(|| AppError::Message(format!("Windsurf account not found: {account_id}")))?;
     let profile_dir = paths::user_data_dir()?;
     let db_path = ensure_state_db(&profile_dir)?;
     backup_state_db(&db_path)?;
@@ -125,8 +124,8 @@ fn mutate_auth_status(
     let Some(object) = auth_status.as_object_mut() else {
         return;
     };
-    let display_name = non_empty(account.github_name.as_deref())
-        .unwrap_or_else(|| account_label.to_string());
+    let display_name =
+        non_empty(account.github_name.as_deref()).unwrap_or_else(|| account_label.to_string());
     let display_email = non_empty(account.github_email.as_deref());
     object.insert("apiKey".to_string(), Value::String(api_key.to_string()));
     object.insert("name".to_string(), Value::String(display_name.clone()));
@@ -185,7 +184,12 @@ fn verify_written_account(conn: &Connection, expected_api_key: &str) -> Result<(
     let actual = raw
         .as_deref()
         .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
-        .and_then(|value| value.get("apiKey").and_then(Value::as_str).map(str::to_string));
+        .and_then(|value| {
+            value
+                .get("apiKey")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        });
     if actual.as_deref() != Some(expected_api_key) {
         return Err(AppError::Message(
             "Windsurf account verification failed after writing state.vscdb".to_string(),

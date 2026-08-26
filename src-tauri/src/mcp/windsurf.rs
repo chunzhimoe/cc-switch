@@ -65,9 +65,9 @@ fn mcp_servers_mut(document: &mut Value) -> Result<&mut Map<String, Value>, AppE
     let servers = root
         .entry(MCP_SERVERS_KEY.to_string())
         .or_insert_with(|| Value::Object(Map::new()));
-    servers.as_object_mut().ok_or_else(|| {
-        AppError::Config("Windsurf mcpServers must be a JSON object".to_string())
-    })
+    servers
+        .as_object_mut()
+        .ok_or_else(|| AppError::Config("Windsurf mcpServers must be a JSON object".to_string()))
 }
 
 fn convert_to_windsurf_format(spec: &Value) -> Result<Value, AppError> {
@@ -75,10 +75,13 @@ fn convert_to_windsurf_format(spec: &Value) -> Result<Value, AppError> {
     let obj = spec
         .as_object()
         .ok_or_else(|| AppError::McpValidation("MCP spec must be a JSON object".into()))?;
-    let kind = obj
-        .get("type")
-        .and_then(Value::as_str)
-        .unwrap_or_else(|| if obj.contains_key("command") { "stdio" } else { "http" });
+    let kind = obj.get("type").and_then(Value::as_str).unwrap_or_else(|| {
+        if obj.contains_key("command") {
+            "stdio"
+        } else {
+            "http"
+        }
+    });
 
     let mut result = Map::new();
     match kind {
@@ -112,9 +115,7 @@ fn convert_to_windsurf_format(spec: &Value) -> Result<Value, AppError> {
 
 fn convert_from_windsurf_format(id: &str, spec: &Value) -> Result<Value, AppError> {
     let obj = spec.as_object().ok_or_else(|| {
-        AppError::McpValidation(format!(
-            "Windsurf MCP server '{id}' must be a JSON object"
-        ))
+        AppError::McpValidation(format!("Windsurf MCP server '{id}' must be a JSON object"))
     })?;
     let mut result = Map::new();
 

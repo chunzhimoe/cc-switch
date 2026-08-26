@@ -23,9 +23,8 @@ pub fn detect_and_save_launch_path(force: bool) -> Result<Option<PathBuf>, AppEr
 }
 
 pub fn ensure_launch_path() -> Result<PathBuf, AppError> {
-    detect_and_save_launch_path(false)?.ok_or_else(|| {
-        AppError::Message("APP_PATH_NOT_FOUND:windsurf".to_string())
-    })
+    detect_and_save_launch_path(false)?
+        .ok_or_else(|| AppError::Message("APP_PATH_NOT_FOUND:windsurf".to_string()))
 }
 
 pub fn is_running() -> bool {
@@ -72,9 +71,7 @@ pub fn close(timeout_secs: u64) -> Result<(), AppError> {
     }
     #[cfg(not(target_os = "windows"))]
     for pid in &pids {
-        let _ = Command::new("kill")
-            .args(["-9", &pid.to_string()])
-            .status();
+        let _ = Command::new("kill").args(["-9", &pid.to_string()]).status();
     }
 
     if wait_for_exit(&pids, Duration::from_secs(3)) {
@@ -106,15 +103,12 @@ pub fn start() -> Result<u32, AppError> {
         use std::os::windows::process::CommandExt;
         command.creation_flags(0x08000000);
     }
-    command
-        .spawn()
-        .map(|child| child.id())
-        .map_err(|error| {
-            AppError::Message(format!(
-                "Failed to start Windsurf from {}: {error}",
-                executable.display()
-            ))
-        })
+    command.spawn().map(|child| child.id()).map_err(|error| {
+        AppError::Message(format!(
+            "Failed to start Windsurf from {}: {error}",
+            executable.display()
+        ))
+    })
 }
 
 pub fn restart() -> Result<u32, AppError> {

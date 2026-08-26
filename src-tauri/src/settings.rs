@@ -60,7 +60,7 @@ impl Default for VisibleApps {
             grokbuild: true,
             opencode: true,
             openclaw: true,
-            hermes: false, // 默认不显示，需用户手动启用
+            hermes: false,   // 默认不显示，需用户手动启用
             windsurf: false, // 默认不显示，需用户手动启用
         }
     }

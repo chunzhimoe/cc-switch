@@ -138,8 +138,8 @@ fn upsert_extension_state(
             );
         }
     }
-    let serialized = serde_json::to_string(&state)
-        .map_err(|error| AppError::JsonSerialize { source: error })?;
+    let serialized =
+        serde_json::to_string(&state).map_err(|error| AppError::JsonSerialize { source: error })?;
     upsert_item(conn, EXTENSION_STATE_KEY, &serialized)
 }
 
@@ -158,10 +158,7 @@ fn upsert_item(conn: &Connection, key: &str, value: &str) -> Result<(), AppError
     Ok(())
 }
 
-fn query_existing_secret_prefix(
-    conn: &Connection,
-    key: &str,
-) -> Result<Option<String>, AppError> {
+fn query_existing_secret_prefix(conn: &Connection, key: &str) -> Result<Option<String>, AppError> {
     let existing: Option<String> = conn
         .query_row("SELECT value FROM ItemTable WHERE key = ?1", [key], |row| {
             row.get(0)
@@ -235,8 +232,8 @@ fn encrypt_secret_payload(
     let local_state_path = profile_dir.join("Local State");
     let content = std::fs::read_to_string(&local_state_path)
         .map_err(|error| AppError::io(&local_state_path, error))?;
-    let local_state: Value = serde_json::from_str(&content)
-        .map_err(|error| AppError::json(&local_state_path, error))?;
+    let local_state: Value =
+        serde_json::from_str(&content).map_err(|error| AppError::json(&local_state_path, error))?;
     let encrypted_key = local_state
         .pointer("/os_crypt/encrypted_key")
         .and_then(Value::as_str)

@@ -7,7 +7,8 @@ use crate::provider::Provider;
 use crate::services::ProviderService;
 use crate::store::AppState;
 use crate::windsurf::account::{
-    self, new_account_from_auth1_refresh, new_token_account, WindsurfAccount, WindsurfAccountSummary,
+    self, new_account_from_auth1_refresh, new_token_account, WindsurfAccount,
+    WindsurfAccountSummary,
 };
 use crate::windsurf::{devin_oauth, local_import, paths, process};
 
@@ -66,7 +67,9 @@ pub async fn add_windsurf_account_with_token(
         if refresh.user_status.is_none() {
             match devin_oauth::fetch_user_status(&refresh.ide_token).await {
                 Ok(status) => refresh.user_status = Some(status),
-                Err(error) => log::warn!("Windsurf GetUserStatus failed after auth1 refresh: {error}"),
+                Err(error) => {
+                    log::warn!("Windsurf GetUserStatus failed after auth1 refresh: {error}")
+                }
             }
         }
         new_account_from_auth1_refresh(None, label, &trimmed, &refresh)
@@ -97,12 +100,7 @@ pub async fn add_windsurf_account_with_password(
         .email
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| email.trim().to_string());
-    let account = new_account_from_auth1_refresh(
-        Some(email),
-        label,
-        &login.auth1_token,
-        &refresh,
-    );
+    let account = new_account_from_auth1_refresh(Some(email), label, &login.auth1_token, &refresh);
     let account = account::upsert_account(account).map_err(|error| error.to_string())?;
     save_provider_pointer(state.inner(), &account).map_err(|error| error.to_string())?;
     Ok(account.summary())
@@ -141,18 +139,14 @@ pub async fn switch_windsurf_account(
 
         // Detect while the process is still running; its executable path is the
         // strongest discovery signal and is lost after shutdown.
-        let launch_path = process::detect_and_save_launch_path(false)
-            .map_err(|error| error.to_string())?;
+        let launch_path =
+            process::detect_and_save_launch_path(false).map_err(|error| error.to_string())?;
         let was_running = process::is_running();
         if was_running {
             process::close(10).map_err(|error| error.to_string())?;
         }
 
-        if let Err(error) = ProviderService::switch(
-            state.inner(),
-            AppType::Windsurf,
-            &account_id,
-        ) {
+        if let Err(error) = ProviderService::switch(state.inner(), AppType::Windsurf, &account_id) {
             if was_running && launch_path.is_some() {
                 let _ = process::start();
             }
@@ -196,7 +190,11 @@ pub fn detect_windsurf_app_path(force: Option<bool>) -> Result<Option<String>, S
 
 #[tauri::command]
 pub fn set_windsurf_app_path(path: Option<String>) -> Result<(), String> {
-    if let Some(path) = path.as_deref().map(str::trim).filter(|value| !value.is_empty()) {
+    if let Some(path) = path
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
         let candidate = std::path::Path::new(path);
         let lower = path.to_ascii_lowercase();
         if !candidate.is_file() || (!lower.contains("windsurf") && !lower.contains("devin")) {
@@ -208,8 +206,7 @@ pub fn set_windsurf_app_path(path: Option<String>) -> Result<(), String> {
 
 #[tauri::command]
 pub fn set_windsurf_user_data_dir(path: Option<String>) -> Result<(), String> {
-    crate::settings::set_windsurf_user_data_dir(path.as_deref())
-        .map_err(|error| error.to_string())
+    crate::settings::set_windsurf_user_data_dir(path.as_deref()).map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -220,11 +217,9 @@ pub fn get_windsurf_status(state: State<'_, AppState>) -> Result<WindsurfStatus,
     let mcp_config_path = crate::mcp::get_windsurf_mcp_config_path()
         .ok()
         .map(|path| path.to_string_lossy().to_string());
-    let current_account_id = crate::settings::get_effective_current_provider(
-        state.db.as_ref(),
-        &AppType::Windsurf,
-    )
-    .map_err(|error| error.to_string())?;
+    let current_account_id =
+        crate::settings::get_effective_current_provider(state.db.as_ref(), &AppType::Windsurf)
+            .map_err(|error| error.to_string())?;
 
     Ok(WindsurfStatus {
         current_account_id,
@@ -256,5 +251,7 @@ fn save_provider_pointer(
     );
     provider.category = Some("windsurf-account".to_string());
     provider.icon = Some("windsurf".to_string());
-    state.db.save_provider(AppType::Windsurf.as_str(), &provider)
+    state
+        .db
+        .save_provider(AppType::Windsurf.as_str(), &provider)
 }
