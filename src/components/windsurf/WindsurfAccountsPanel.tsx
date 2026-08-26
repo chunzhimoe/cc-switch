@@ -23,7 +23,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useWindsurfAccounts, useWindsurfActions, useWindsurfStatus } from "@/hooks/useWindsurf";
+import {
+  useWindsurfAccounts,
+  useWindsurfActions,
+  useWindsurfStatus,
+} from "@/hooks/useWindsurf";
 import type { WindsurfAccountSummary } from "@/lib/api/windsurf";
 
 export default function WindsurfAccountsPanel() {
@@ -153,14 +157,20 @@ export default function WindsurfAccountsPanel() {
                   : t("windsurf.status.stopped", { defaultValue: "未运行" })}
               </Badge>
             </div>
-            <p className="truncate text-xs text-muted-foreground" title={status?.appPath ?? undefined}>
+            <p
+              className="truncate text-xs text-muted-foreground"
+              title={status?.appPath ?? undefined}
+            >
               {status?.appPath ||
                 t("windsurf.status.pathMissing", {
                   defaultValue: "尚未检测到 Windsurf/Devin 可执行文件",
                 })}
             </p>
             {status?.userDataDir && (
-              <p className="truncate text-xs text-muted-foreground" title={status.userDataDir}>
+              <p
+                className="truncate text-xs text-muted-foreground"
+                title={status.userDataDir}
+              >
                 {status.userDataDir}
               </p>
             )}
@@ -200,7 +210,9 @@ export default function WindsurfAccountsPanel() {
               onClick={() => void handleImportLocal()}
             >
               <Download className="mr-2 h-4 w-4" />
-              {t("windsurf.actions.importLocal", { defaultValue: "导入本机账号" })}
+              {t("windsurf.actions.importLocal", {
+                defaultValue: "导入本机账号",
+              })}
             </Button>
             <Button
               variant="outline"
@@ -237,14 +249,16 @@ export default function WindsurfAccountsPanel() {
         ) : accounts.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border-default p-10 text-center text-sm text-muted-foreground">
             {t("windsurf.empty", {
-              defaultValue: "还没有 Windsurf 账号。可导入本机登录态或添加 Token。",
+              defaultValue:
+                "还没有 Windsurf 账号。可导入本机登录态或添加 Token。",
             })}
           </div>
         ) : (
           accounts.map((account) => {
             const current = status?.currentAccountId === account.id;
             const pending =
-              actions.switchAccount.isPending || actions.deleteAccount.isPending;
+              actions.switchAccount.isPending ||
+              actions.deleteAccount.isPending;
             return (
               <article
                 key={account.id}
@@ -252,7 +266,9 @@ export default function WindsurfAccountsPanel() {
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="truncate font-medium">{account.label}</span>
+                    <span className="truncate font-medium">
+                      {account.label}
+                    </span>
                     {current && (
                       <Badge className="gap-1" variant="secondary">
                         <CheckCircle2 className="h-3 w-3" />
@@ -273,7 +289,9 @@ export default function WindsurfAccountsPanel() {
                     disabled={current || pending}
                     onClick={() => setPendingSwitch(account)}
                   >
-                    {t("windsurf.actions.switch", { defaultValue: "切换并重启" })}
+                    {t("windsurf.actions.switch", {
+                      defaultValue: "切换并重启",
+                    })}
                   </Button>
                   <Button
                     size="icon"
@@ -295,7 +313,9 @@ export default function WindsurfAccountsPanel() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {t("windsurf.addToken.title", { defaultValue: "添加 Windsurf Token" })}
+              {t("windsurf.addToken.title", {
+                defaultValue: "添加 Windsurf Token",
+              })}
             </DialogTitle>
             <DialogDescription>
               {t("windsurf.addToken.description", {
@@ -308,13 +328,17 @@ export default function WindsurfAccountsPanel() {
             <Input
               value={label}
               onChange={(event) => setLabel(event.target.value)}
-              placeholder={t("windsurf.addToken.label", { defaultValue: "账号名称（可选）" })}
+              placeholder={t("windsurf.addToken.label", {
+                defaultValue: "账号名称（可选）",
+              })}
             />
             <Input
               type="password"
               value={token}
               onChange={(event) => setToken(event.target.value)}
-              placeholder={t("windsurf.addToken.token", { defaultValue: "Token" })}
+              placeholder={t("windsurf.addToken.token", {
+                defaultValue: "Token",
+              })}
               autoComplete="off"
             />
           </div>
@@ -378,7 +402,10 @@ export default function WindsurfAccountsPanel() {
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPasswordDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setPasswordDialogOpen(false)}
+            >
               {t("common.cancel")}
             </Button>
             <Button
@@ -398,12 +425,16 @@ export default function WindsurfAccountsPanel() {
 
       <ConfirmDialog
         isOpen={Boolean(pendingSwitch)}
-        title={t("windsurf.switchConfirm.title", { defaultValue: "切换 Windsurf 账号" })}
+        title={t("windsurf.switchConfirm.title", {
+          defaultValue: "切换 Windsurf 账号",
+        })}
         message={t("windsurf.switchConfirm.message", {
           defaultValue:
             "将关闭 Windsurf/Devin、写入新账号登录态并重新启动。请先保存编辑器中的工作。",
         })}
-        confirmText={t("windsurf.actions.switch", { defaultValue: "切换并重启" })}
+        confirmText={t("windsurf.actions.switch", {
+          defaultValue: "切换并重启",
+        })}
         variant="info"
         onCancel={() => setPendingSwitch(null)}
         onConfirm={() => {
@@ -413,9 +444,12 @@ export default function WindsurfAccountsPanel() {
 
       <ConfirmDialog
         isOpen={Boolean(pendingDelete)}
-        title={t("windsurf.deleteConfirm.title", { defaultValue: "删除 Windsurf 账号" })}
+        title={t("windsurf.deleteConfirm.title", {
+          defaultValue: "删除 Windsurf 账号",
+        })}
         message={t("windsurf.deleteConfirm.message", {
-          defaultValue: "将从 cc-switch 删除此账号，不会修改当前 Windsurf 登录态。",
+          defaultValue:
+            "将从 cc-switch 删除此账号，不会修改当前 Windsurf 登录态。",
         })}
         confirmText={t("common.delete")}
         onCancel={() => setPendingDelete(null)}
