@@ -152,6 +152,13 @@ pub(crate) fn build_provider_from_request(
         AppType::OpenCode => build_opencode_settings(request),
         AppType::OpenClaw => build_additive_app_settings(request),
         AppType::Hermes => build_hermes_settings(request),
+        AppType::Windsurf => {
+            return Err(AppError::localized(
+                "windsurf.dedicated_account_import_required",
+                "Windsurf 账号必须通过账号管理面板导入",
+                "Windsurf accounts must be imported through the account manager",
+            ));
+        }
     };
 
     // Build usage script configuration if provided

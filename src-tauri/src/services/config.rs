@@ -138,6 +138,9 @@ impl ConfigService {
             AppType::Hermes => {
                 // Hermes uses additive mode, no live sync needed
             }
+            AppType::Windsurf => {
+                // Windsurf authentication is injected by the dedicated account switch service.
+            }
         }
 
         Ok(())

@@ -3135,6 +3135,21 @@ impl ProviderService {
             }
         }
 
+        // Windsurf authentication injection must succeed before current-account
+        // state is committed. Generic switch-mode apps historically commit
+        // current first, which would leave the UI and state.vscdb split if DPAPI,
+        // SQLite, or SecretStorage writing failed.
+        if matches!(app_type, AppType::Windsurf) {
+            write_live_with_common_config(state.db.as_ref(), &app_type, provider)?;
+            crate::settings::set_current_provider(&app_type, Some(id))?;
+            state.db.set_current_provider(app_type.as_str(), id)?;
+            if let Err(error) = McpService::sync_enabled_for_app(state, &app_type) {
+                log::warn!("切换 Windsurf 后重投影 MCP 失败（将在下次同步时自愈）: {error}");
+                result.warnings.push("windsurf_mcp_sync_failed".to_string());
+            }
+            return Ok(result);
+        }
+
         // Additive mode apps skip setting is_current (no such concept)
         if !app_type.is_additive_mode() {
             // Update local settings (device-level, takes priority)
@@ -3491,6 +3506,7 @@ impl ProviderService {
             AppType::OpenCode => Self::extract_opencode_common_config(&provider.settings_config),
             AppType::OpenClaw => Self::extract_openclaw_common_config(&provider.settings_config),
             AppType::Hermes => Ok(String::new()), // Hermes doesn't use common config snippets
+            AppType::Windsurf => Ok(String::new()), // Windsurf Rules are managed as prompts
         }
     }
 
@@ -3508,6 +3524,7 @@ impl ProviderService {
             AppType::OpenCode => Self::extract_opencode_common_config(settings_config),
             AppType::OpenClaw => Self::extract_openclaw_common_config(settings_config),
             AppType::Hermes => Ok(String::new()), // Hermes doesn't use common config snippets
+            AppType::Windsurf => Ok(String::new()), // Windsurf Rules are managed as prompts
         }
     }
 
@@ -4274,6 +4291,21 @@ impl ProviderService {
                     ));
                 }
             }
+            AppType::Windsurf => {
+                let account_id = provider
+                    .settings_config
+                    .get("accountId")
+                    .and_then(Value::as_str)
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty());
+                if account_id.is_none() {
+                    return Err(AppError::localized(
+                        "provider.windsurf.account_id.missing",
+                        "Windsurf 账号配置缺少 accountId",
+                        "Windsurf account configuration is missing accountId",
+                    ));
+                }
+            }
         }
 
         // Validate and clean UsageScript configuration (common for all app types)
@@ -4502,6 +4534,11 @@ impl ProviderService {
 
                 Ok((api_key, base_url))
             }
+            AppType::Windsurf => Err(AppError::localized(
+                "provider.windsurf.credentials.dedicated",
+                "Windsurf 凭据由账号管理服务持有",
+                "Windsurf credentials are managed by the account service",
+            )),
         }
     }
 }

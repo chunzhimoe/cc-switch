@@ -37,6 +37,7 @@ mod store;
 mod tray;
 mod usage_events;
 mod usage_script;
+mod windsurf;
 
 pub use app_config::{AppType, InstalledSkill, McpApps, McpServer, MultiAppConfig, SkillApps};
 pub use codex_config::{
@@ -687,8 +688,9 @@ pub fn run() {
             let fresh_install_at_startup =
                 app_state.db.is_providers_empty().unwrap_or(false);
 
-            for app_type in
-                crate::app_config::AppType::all().filter(|t| !t.is_additive_mode())
+            for app_type in crate::app_config::AppType::all().filter(|t| {
+                !t.is_additive_mode() && !matches!(t, crate::app_config::AppType::Windsurf)
+            })
             {
                 if !crate::services::provider::should_import_default_config_on_startup(
                     &app_state,
@@ -932,6 +934,14 @@ pub fn run() {
                     Ok(_) => log::debug!("○ No Hermes MCP servers found to import"),
                     Err(e) => log::warn!("✗ Failed to import Hermes MCP: {e}"),
                 }
+
+                match crate::services::mcp::McpService::import_from_windsurf(&app_state) {
+                    Ok(count) if count > 0 => {
+                        log::info!("✓ Imported {count} MCP server(s) from Windsurf");
+                    }
+                    Ok(_) => log::debug!("○ No Windsurf MCP servers found to import"),
+                    Err(e) => log::warn!("✗ Failed to import Windsurf MCP: {e}"),
+                }
             }
 
             // 4. 导入提示词文件（表空时触发）
@@ -946,6 +956,7 @@ pub fn run() {
                     crate::app_config::AppType::OpenCode,
                     crate::app_config::AppType::OpenClaw,
                     crate::app_config::AppType::Hermes,
+                    crate::app_config::AppType::Windsurf,
                 ] {
                     match crate::services::prompt::PromptService::import_from_file_on_first_launch(
                         &app_state,
@@ -1594,6 +1605,17 @@ pub fn run() {
             commands::set_hermes_memory,
             commands::get_hermes_memory_limits,
             commands::set_hermes_memory_enabled,
+            // Windsurf account and local profile management
+            commands::list_windsurf_accounts,
+            commands::import_windsurf_from_local,
+            commands::add_windsurf_account_with_token,
+            commands::add_windsurf_account_with_password,
+            commands::delete_windsurf_account,
+            commands::switch_windsurf_account,
+            commands::detect_windsurf_app_path,
+            commands::set_windsurf_app_path,
+            commands::set_windsurf_user_data_dir,
+            commands::get_windsurf_status,
             // Global upstream proxy
             commands::get_global_proxy_url,
             commands::set_global_proxy_url,

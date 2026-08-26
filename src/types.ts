@@ -177,8 +177,27 @@ export interface ModelListProxyConfig {
   stripPrefix?: string;
 }
 
+export type ClassifierRoutingStrategy = "fixed" | "priority_list" | "cheapest";
+
+export interface ClassifierModelEntry {
+  id: string;
+  note?: string;
+  inputPrice?: number;
+  outputPrice?: number;
+}
+
+export interface ClassifierRoutingConfig {
+  enabled: boolean;
+  strategy: ClassifierRoutingStrategy;
+  defaultModel: string;
+  models: ClassifierModelEntry[];
+  logHits: boolean;
+}
+
 // 供应商元数据（字段名与后端一致，保持 snake_case）
 export interface ProviderMeta {
+  // Provider-scoped Claude Code Auto safety classifier routing.
+  classifierRouting?: ClassifierRoutingConfig;
   modelListProxy?: ModelListProxyConfig;
   // 自定义端点：以 URL 为键，值为端点信息
   custom_endpoints?: Record<string, CustomEndpoint>;
@@ -294,6 +313,7 @@ export interface VisibleApps {
   opencode: boolean;
   openclaw: boolean;
   hermes: boolean;
+  windsurf: boolean;
 }
 
 // WebDAV 同步状态
@@ -413,6 +433,10 @@ export interface Settings {
   openclawConfigDir?: string;
   // 覆盖 Hermes 配置目录（可选）
   hermesConfigDir?: string;
+  // Windsurf/Devin 可执行文件路径（可自动检测）
+  windsurfAppPath?: string;
+  // Windsurf/Devin 用户数据目录（包含 state.vscdb / Local State）
+  windsurfUserDataDir?: string;
 
   // ===== 当前供应商 ID（设备级）=====
   // 当前 Claude 供应商 ID（优先于数据库 is_current）
@@ -423,6 +447,8 @@ export interface Settings {
   currentProviderCodex?: string;
   // 当前 Gemini 供应商 ID（优先于数据库 is_current）
   currentProviderGemini?: string;
+  // 当前 Windsurf 账号 ID（优先于数据库 is_current）
+  currentProviderWindsurf?: string;
 
   // ===== Skill 同步设置 =====
   // Skill 同步方式：auto（默认，优先 symlink）、symlink、copy
@@ -505,6 +531,7 @@ export interface McpApps {
   opencode: boolean;
   openclaw: boolean;
   hermes: boolean;
+  windsurf?: boolean;
 }
 
 // MCP 服务器条目（v3.7.0 统一结构）

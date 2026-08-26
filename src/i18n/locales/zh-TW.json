@@ -890,7 +890,8 @@
     "grokbuild": "Grok Build",
     "opencode": "OpenCode",
     "openclaw": "OpenClaw",
-    "hermes": "Hermes"
+    "hermes": "Hermes",
+    "windsurf": "Windsurf"
   },
   "grokBuild": {
     "apiBackend": "API Backend",
@@ -1157,7 +1158,7 @@
     "quickSetModels": "一鍵設定",
     "quickSetSuccess": "已將模型名稱套用至所有角色",
     "advancedOptionsToggle": "進階選項",
-    "advancedOptionsHint": "包含 API 格式、驗證欄位、上下文與自動壓縮視窗、模型對應等設定。大多數場景下保持預設即可。",
+    "advancedOptionsHint": "包含 API 格式、驗證欄位、上下文與自動壓縮視窗、模型對應及 Auto 模式分類器分流等設定。大多數場景下保持預設即可。",
     "contextWindowSectionLabel": "上下文與自動壓縮",
     "claudeCodeMaxContextTokensLabel": "Claude Code 模型上下文上限",
     "claudeCodeMaxContextTokensHint": "寫入 env.CLAUDE_CODE_MAX_CONTEXT_TOKENS，並以字串儲存，明確宣告模型上下文上限。",
@@ -1182,7 +1183,37 @@
     "fetchModelsNotSupported": "該供應商不支援取得模型清單",
     "fetchModelsEndpointNotFound": "未找到可用的模型清單端點，請檢查 Base URL 或確認供應商是否開放該 API",
     "fetchModelsTimeout": "請求逾時，請檢查網路連線",
-    "requiredFields": "請填寫供應商名稱、API 位址、API Key 和模型"
+    "requiredFields": "請填寫供應商名稱、API 位址、API Key 和模型",
+    "classifierRoutingTitle": "Auto 模式分類器分流",
+    "classifierRoutingDescription": "主模型由此供應商的模型對應決定；此處僅覆蓋 Auto 模式安全分類器請求中的 model 欄位。",
+    "classifierRoutingEnabled": "啟用分類器分流",
+    "classifierRoutingScopeHint": "僅當此供應商是目前本機代理路由目標，且命中 Auto 安全分類器時生效。",
+    "classifierRoutingStrategy": "分流策略",
+    "classifierRoutingFixed": "固定模型",
+    "classifierRoutingFixedHint": "始終使用預設模型",
+    "classifierRoutingPriority": "優先清單",
+    "classifierRoutingPriorityHint": "依清單順序選擇模型",
+    "classifierRoutingCheapest": "最便宜優先",
+    "classifierRoutingCheapestHint": "依輸入與輸出單價總和選擇",
+    "classifierRoutingModels": "分類器模型清單",
+    "classifierRoutingDefault": "預設",
+    "classifierRoutingSetDefault": "設為預設",
+    "classifierRoutingMoveUp": "上移",
+    "classifierRoutingMoveDown": "下移",
+    "classifierRoutingDelete": "刪除",
+    "classifierRoutingNoModels": "尚未新增分類器模型",
+    "classifierRoutingAddModel": "+ 新增模型",
+    "classifierRoutingModelIdPlaceholder": "模型 ID，例如 gpt-5.6-sol",
+    "classifierRoutingNotePlaceholder": "備註（選填）",
+    "classifierRoutingInputPricePlaceholder": "輸入單價（選填）",
+    "classifierRoutingInputPrice": "輸入單價",
+    "classifierRoutingOutputPricePlaceholder": "輸出單價（選填）",
+    "classifierRoutingOutputPrice": "輸出單價",
+    "classifierRoutingAddButton": "新增",
+    "classifierRoutingLogHits": "命中時寫入除錯日誌",
+    "classifierRoutingModelRequired": "啟用分類器分流前請至少新增一個模型",
+    "classifierRoutingModelDuplicate": "此模型 ID 已存在",
+    "classifierRoutingPriceInvalid": "單價必須是大於等於 0 的數字"
   },
   "copilot": {
     "authSection": "GitHub Copilot 驗證",
@@ -1820,7 +1851,8 @@
         "grokbuild": "Grok Build",
         "opencode": "OpenCode",
         "openclaw": "OpenClaw",
-        "hermes": "Hermes"
+        "hermes": "Hermes",
+        "windsurf": "Windsurf"
       }
     },
     "userLevelPath": "使用者級 MCP 設定路徑",
@@ -2236,6 +2268,52 @@
       "loadFailed": "讀取記憶檔案失敗",
       "openConfig": "在 Hermes Web UI 調整上限",
       "runtimeNote": "變更將在 Hermes 下次啟動或建立新工作階段時生效。"
+    }
+  },
+  "windsurf": {
+    "title": "Windsurf 帳號",
+    "empty": "尚無 Windsurf 帳號。可匯入本機登入狀態、使用信箱密碼登入或新增 Token。",
+    "current": "目前",
+    "status": {
+      "running": "執行中",
+      "stopped": "未執行",
+      "pathMissing": "尚未偵測到 Windsurf/Devin 可執行檔"
+    },
+    "actions": {
+      "detect": "重新偵測",
+      "importLocal": "匯入本機帳號",
+      "addPassword": "信箱密碼登入",
+      "addToken": "新增 Token",
+      "switch": "切換並重新啟動"
+    },
+    "notifications": {
+      "imported": "已匯入 Windsurf 帳號：{{label}}",
+      "added": "Windsurf 帳號已新增",
+      "deleted": "Windsurf 帳號已刪除",
+      "switched": "已切換並重新啟動 Windsurf",
+      "switchedWithWarning": "帳號已切換，但 Windsurf 無法自動啟動：{{warning}}",
+      "pathDetected": "已偵測到 Windsurf：{{path}}"
+    },
+    "addToken": {
+      "title": "新增 Windsurf Token",
+      "description": "支援 sk-ws-*、cog_*、auth1_* 或 devin-session-token$*。Token 僅儲存在本機帳號檔案中。",
+      "label": "帳號名稱（選填）",
+      "token": "Token"
+    },
+    "addPassword": {
+      "title": "信箱密碼登入 Windsurf",
+      "description": "透過 Devin Auth1 信箱密碼登入，取得本機可用的 IDE session。帳號資訊只保存在本機。",
+      "label": "帳號名稱（選填）",
+      "email": "信箱",
+      "password": "密碼"
+    },
+    "switchConfirm": {
+      "title": "切換 Windsurf 帳號",
+      "message": "將關閉 Windsurf/Devin、寫入新帳號登入狀態並重新啟動。請先儲存編輯器中的工作。"
+    },
+    "deleteConfirm": {
+      "title": "刪除 Windsurf 帳號",
+      "message": "將從 CC Switch 刪除此帳號，不會修改目前的 Windsurf 登入狀態。"
     }
   },
   "env": {

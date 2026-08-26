@@ -135,6 +135,16 @@ pub async fn get_config_status(
 
             Ok(ConfigStatus { exists, path })
         }
+        AppType::Windsurf => {
+            let state_db = crate::windsurf::paths::state_db_path().map_err(|e| e.to_string())?;
+            let exists = state_db.exists();
+            let path = crate::windsurf::paths::user_data_dir()
+                .map_err(|e| e.to_string())?
+                .to_string_lossy()
+                .to_string();
+
+            Ok(ConfigStatus { exists, path })
+        }
     }
 }
 
@@ -156,6 +166,7 @@ pub async fn get_config_dir(app: String) -> Result<String, String> {
         AppType::OpenCode => crate::opencode_config::get_opencode_dir(),
         AppType::OpenClaw => crate::openclaw_config::get_openclaw_dir(),
         AppType::Hermes => crate::hermes_config::get_hermes_dir(),
+        AppType::Windsurf => crate::windsurf::paths::user_data_dir().map_err(|e| e.to_string())?,
     };
 
     Ok(dir.to_string_lossy().to_string())
@@ -174,6 +185,7 @@ pub async fn open_config_folder(handle: AppHandle, app: String) -> Result<bool, 
         AppType::OpenCode => crate::opencode_config::get_opencode_dir(),
         AppType::OpenClaw => crate::openclaw_config::get_openclaw_dir(),
         AppType::Hermes => crate::hermes_config::get_hermes_dir(),
+        AppType::Windsurf => crate::windsurf::paths::user_data_dir().map_err(|e| e.to_string())?,
     };
 
     if !config_dir.exists() {

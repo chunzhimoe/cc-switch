@@ -889,7 +889,8 @@
     "grokbuild": "Grok Build",
     "opencode": "OpenCode",
     "openclaw": "OpenClaw",
-    "hermes": "Hermes"
+    "hermes": "Hermes",
+    "windsurf": "Windsurf"
   },
   "grokBuild": {
     "apiBackend": "API Backend",
@@ -1156,7 +1157,7 @@
     "quickSetModels": "一键设置",
     "quickSetSuccess": "已将模型名称应用到所有角色",
     "advancedOptionsToggle": "高级选项",
-    "advancedOptionsHint": "包含 API 格式、认证字段、上下文与自动压缩窗口、模型映射等配置。大多数场景下保持默认即可。",
+    "advancedOptionsHint": "包含 API 格式、认证字段、上下文与自动压缩窗口、模型映射和 Auto 模式分类器分流等配置。大多数场景下保持默认即可。",
     "contextWindowSectionLabel": "上下文与自动压缩",
     "claudeCodeMaxContextTokensLabel": "Claude Code 模型上下文上限",
     "claudeCodeMaxContextTokensHint": "写入 env.CLAUDE_CODE_MAX_CONTEXT_TOKENS，按字符串保存，明确声明模型上下文上限。",
@@ -1181,7 +1182,37 @@
     "fetchModelsNotSupported": "该供应商不支持获取模型列表",
     "fetchModelsEndpointNotFound": "未找到可用的模型列表端点，请检查 Base URL 或确认供应商是否开放该接口",
     "fetchModelsTimeout": "请求超时，请检查网络连接",
-    "requiredFields": "请填写供应商名称、API 地址、API Key 和模型"
+    "requiredFields": "请填写供应商名称、API 地址、API Key 和模型",
+    "classifierRoutingTitle": "Auto 模式分类器分流",
+    "classifierRoutingDescription": "主模型由本供应商的模型映射决定；此处仅覆盖 Auto 模式安全分类器请求中的 model 字段。",
+    "classifierRoutingEnabled": "启用分类器分流",
+    "classifierRoutingScopeHint": "仅当本供应商是当前本地代理路由目标，并命中 Auto 安全分类器时生效。",
+    "classifierRoutingStrategy": "分流策略",
+    "classifierRoutingFixed": "固定模型",
+    "classifierRoutingFixedHint": "始终使用默认模型",
+    "classifierRoutingPriority": "优先列表",
+    "classifierRoutingPriorityHint": "按列表从上到下选择模型",
+    "classifierRoutingCheapest": "最便宜优先",
+    "classifierRoutingCheapestHint": "按输入和输出单价之和选择",
+    "classifierRoutingModels": "分类器模型列表",
+    "classifierRoutingDefault": "默认",
+    "classifierRoutingSetDefault": "设为默认",
+    "classifierRoutingMoveUp": "上移",
+    "classifierRoutingMoveDown": "下移",
+    "classifierRoutingDelete": "删除",
+    "classifierRoutingNoModels": "尚未添加分类器模型",
+    "classifierRoutingAddModel": "+ 添加模型",
+    "classifierRoutingModelIdPlaceholder": "模型 ID，例如 gpt-5.6-sol",
+    "classifierRoutingNotePlaceholder": "备注（可选）",
+    "classifierRoutingInputPricePlaceholder": "输入单价（可选）",
+    "classifierRoutingInputPrice": "输入单价",
+    "classifierRoutingOutputPricePlaceholder": "输出单价（可选）",
+    "classifierRoutingOutputPrice": "输出单价",
+    "classifierRoutingAddButton": "添加",
+    "classifierRoutingLogHits": "命中时写调试日志",
+    "classifierRoutingModelRequired": "启用分类器分流前请至少添加一个模型",
+    "classifierRoutingModelDuplicate": "该模型 ID 已存在",
+    "classifierRoutingPriceInvalid": "单价必须是大于等于 0 的数字"
   },
   "copilot": {
     "authSection": "GitHub Copilot 认证",
@@ -1819,7 +1850,8 @@
         "grokbuild": "Grok Build",
         "opencode": "OpenCode",
         "openclaw": "OpenClaw",
-        "hermes": "Hermes"
+        "hermes": "Hermes",
+        "windsurf": "Windsurf"
       }
     },
     "userLevelPath": "用户级 MCP 配置路径",
@@ -2235,6 +2267,52 @@
       "loadFailed": "读取记忆文件失败",
       "openConfig": "在 Hermes Web UI 调整上限",
       "runtimeNote": "更改将在 Hermes 下次启动或新建会话时生效。"
+    }
+  },
+  "windsurf": {
+    "title": "Windsurf 账号",
+    "empty": "还没有 Windsurf 账号。可导入本机登录态、邮箱密码登录或添加 Token。",
+    "current": "当前",
+    "status": {
+      "running": "运行中",
+      "stopped": "未运行",
+      "pathMissing": "尚未检测到 Windsurf/Devin 可执行文件"
+    },
+    "actions": {
+      "detect": "重新检测",
+      "importLocal": "导入本机账号",
+      "addPassword": "邮箱密码登录",
+      "addToken": "添加 Token",
+      "switch": "切换并重启"
+    },
+    "notifications": {
+      "imported": "已导入 Windsurf 账号：{{label}}",
+      "added": "Windsurf 账号已添加",
+      "deleted": "Windsurf 账号已删除",
+      "switched": "已切换并重启 Windsurf",
+      "switchedWithWarning": "账号已切换，但 Windsurf 未能自动启动：{{warning}}",
+      "pathDetected": "已检测到 Windsurf：{{path}}"
+    },
+    "addToken": {
+      "title": "添加 Windsurf Token",
+      "description": "支持 sk-ws-*、cog_*、auth1_* 或 devin-session-token$*。Token 只保存在本机账号文件中。",
+      "label": "账号名称（可选）",
+      "token": "Token"
+    },
+    "addPassword": {
+      "title": "邮箱密码登录 Windsurf",
+      "description": "通过 Devin Auth1 邮箱密码登录，换取本机可用的 IDE session。账号信息只保存在本机。",
+      "label": "账号名称（可选）",
+      "email": "邮箱",
+      "password": "密码"
+    },
+    "switchConfirm": {
+      "title": "切换 Windsurf 账号",
+      "message": "将关闭 Windsurf/Devin、写入新账号登录态并重新启动。请先保存编辑器中的工作。"
+    },
+    "deleteConfirm": {
+      "title": "删除 Windsurf 账号",
+      "message": "将从 cc-switch 删除此账号，不会修改当前 Windsurf 登录态。"
     }
   },
   "env": {
