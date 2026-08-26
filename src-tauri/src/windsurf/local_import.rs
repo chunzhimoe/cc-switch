@@ -101,7 +101,7 @@ pub fn import_local_account() -> Result<WindsurfAccount, AppError> {
         windsurf_auth_token: session_token.clone(),
         windsurf_user_status: object.get("userStatus").cloned(),
         windsurf_plan_status: object.get("planStatus").cloned(),
-        windsurf_auth_status_raw: Some(auth_status),
+        windsurf_auth_status_raw: Some(auth_status.clone()),
         quota_query_last_error: None,
         quota_query_last_error_at: None,
         usage_updated_at: None,
