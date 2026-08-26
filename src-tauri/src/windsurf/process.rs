@@ -111,11 +111,6 @@ pub fn start() -> Result<u32, AppError> {
     })
 }
 
-pub fn restart() -> Result<u32, AppError> {
-    close(10)?;
-    start()
-}
-
 fn detect_launch_path() -> Option<PathBuf> {
     for (_, path) in collect_main_processes() {
         if let Some(path) = path {

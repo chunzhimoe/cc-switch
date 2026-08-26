@@ -72,7 +72,7 @@ pub async fn add_windsurf_account_with_token(
                 }
             }
         }
-        new_account_from_auth1_refresh(None, label, &trimmed, &refresh)
+        new_account_from_auth1_refresh(None, label, &refresh.auth1_token, &refresh)
     } else {
         new_token_account(trimmed, label).map_err(|error| error.to_string())?
     };
@@ -100,7 +100,8 @@ pub async fn add_windsurf_account_with_password(
         .email
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| email.trim().to_string());
-    let account = new_account_from_auth1_refresh(Some(email), label, &login.auth1_token, &refresh);
+    let account =
+        new_account_from_auth1_refresh(Some(email), label, &refresh.auth1_token, &refresh);
     let account = account::upsert_account(account).map_err(|error| error.to_string())?;
     save_provider_pointer(state.inner(), &account).map_err(|error| error.to_string())?;
     Ok(account.summary())

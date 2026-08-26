@@ -25,7 +25,6 @@ const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
 #[derive(Debug, Clone)]
 pub struct PasswordLoginResult {
     pub auth1_token: String,
-    pub user_id: Option<String>,
     pub email: Option<String>,
 }
 
@@ -43,7 +42,6 @@ pub struct FullRefreshResult {
 #[derive(Debug, Deserialize)]
 struct PasswordLoginResponse {
     token: Option<String>,
-    user_id: Option<String>,
     email: Option<String>,
 }
 
@@ -95,7 +93,6 @@ pub async fn login_with_password(
         .ok_or_else(|| "Devin 登录响应未包含有效 auth1_token".to_string())?;
     Ok(PasswordLoginResult {
         auth1_token,
-        user_id: parsed.user_id,
         email: parsed.email,
     })
 }

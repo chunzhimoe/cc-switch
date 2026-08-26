@@ -132,19 +132,6 @@ pub fn list_account_summaries() -> Result<Vec<WindsurfAccountSummary>, AppError>
     Ok(load_index()?.accounts)
 }
 
-pub fn list_accounts() -> Result<Vec<WindsurfAccount>, AppError> {
-    let index = load_index()?;
-    index
-        .accounts
-        .iter()
-        .filter_map(|summary| match load_account(&summary.id) {
-            Ok(Some(account)) => Some(Ok(account)),
-            Ok(None) => None,
-            Err(error) => Some(Err(error)),
-        })
-        .collect()
-}
-
 pub fn upsert_account(mut account: WindsurfAccount) -> Result<WindsurfAccount, AppError> {
     let _guard = ACCOUNT_LOCK
         .lock()
