@@ -177,8 +177,27 @@ export interface ModelListProxyConfig {
   stripPrefix?: string;
 }
 
+export type ClassifierRoutingStrategy = "fixed" | "priority_list" | "cheapest";
+
+export interface ClassifierModelEntry {
+  id: string;
+  note?: string;
+  inputPrice?: number;
+  outputPrice?: number;
+}
+
+export interface ClassifierRoutingConfig {
+  enabled: boolean;
+  strategy: ClassifierRoutingStrategy;
+  defaultModel: string;
+  models: ClassifierModelEntry[];
+  logHits: boolean;
+}
+
 // 供应商元数据（字段名与后端一致，保持 snake_case）
 export interface ProviderMeta {
+  // Provider-scoped Claude Code Auto safety classifier routing.
+  classifierRouting?: ClassifierRoutingConfig;
   modelListProxy?: ModelListProxyConfig;
   // 自定义端点：以 URL 为键，值为端点信息
   custom_endpoints?: Record<string, CustomEndpoint>;

@@ -439,9 +439,58 @@ impl ModelListProxyConfig {
     }
 }
 
+/// A model available to the provider-scoped Auto classifier router.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ClassifierModelEntry {
+    pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_price: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_price: Option<f64>,
+}
+
+/// Provider-scoped routing for Claude Code's Auto safety classifier requests.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ClassifierRoutingConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    /// fixed | priority_list | cheapest. Unknown values fall back at runtime.
+    #[serde(default = "default_classifier_strategy")]
+    pub strategy: String,
+    #[serde(default)]
+    pub default_model: String,
+    #[serde(default)]
+    pub models: Vec<ClassifierModelEntry>,
+    #[serde(default)]
+    pub log_hits: bool,
+}
+
+fn default_classifier_strategy() -> String {
+    "priority_list".to_string()
+}
+
+impl Default for ClassifierRoutingConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            strategy: default_classifier_strategy(),
+            default_model: String::new(),
+            models: Vec::new(),
+            log_hits: false,
+        }
+    }
+}
+
 /// 供应商元数据
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ProviderMeta {
+    /// Provider-scoped Auto safety classifier model routing.
+    #[serde(rename = "classifierRouting", skip_serializing_if = "Option::is_none")]
+    pub classifier_routing: Option<ClassifierRoutingConfig>,
     /// Global third-party model-list passthrough and public-id prefix rewrite.
     #[serde(rename = "modelListProxy", skip_serializing_if = "Option::is_none")]
     pub model_list_proxy: Option<ModelListProxyConfig>,
@@ -1019,8 +1068,9 @@ pub struct OpenCodeModelLimit {
 #[cfg(test)]
 mod tests {
     use super::{
-        ClaudeModelConfig, CodexModelConfig, GeminiModelConfig, LocalProxyRequestOverrides,
-        OpenCodeProviderConfig, Provider, ProviderManager, ProviderMeta, UniversalProvider,
+        ClassifierModelEntry, ClassifierRoutingConfig, ClaudeModelConfig, CodexModelConfig,
+        GeminiModelConfig, LocalProxyRequestOverrides, OpenCodeProviderConfig, Provider,
+        ProviderManager, ProviderMeta, UniversalProvider,
     };
     use serde_json::json;
     use std::collections::HashMap;
@@ -1049,6 +1099,42 @@ mod tests {
         let value = serde_json::to_value(&meta).expect("serialize ProviderMeta");
 
         assert!(value.get("pricingModelSource").is_none());
+    }
+
+    #[test]
+    fn provider_meta_roundtrips_classifier_routing() {
+        let meta = ProviderMeta {
+            classifier_routing: Some(ClassifierRoutingConfig {
+                enabled: true,
+                strategy: "cheapest".to_string(),
+                default_model: "stable-model".to_string(),
+                models: vec![ClassifierModelEntry {
+                    id: "stable-model".to_string(),
+                    note: Some("stable".to_string()),
+                    input_price: Some(2.5),
+                    output_price: Some(12.5),
+                }],
+                log_hits: true,
+            }),
+            ..ProviderMeta::default()
+        };
+
+        let value = serde_json::to_value(&meta).expect("serialize classifier routing");
+        assert_eq!(value["classifierRouting"]["strategy"], "cheapest");
+        assert_eq!(value["classifierRouting"]["defaultModel"], "stable-model");
+        assert_eq!(value["classifierRouting"]["models"][0]["inputPrice"], 2.5);
+        assert!(value["classifierRouting"].get("default_model").is_none());
+
+        let decoded: ProviderMeta =
+            serde_json::from_value(value).expect("deserialize classifier routing");
+        let routing = decoded
+            .classifier_routing
+            .expect("classifier routing should roundtrip");
+        assert_eq!(routing.strategy, "cheapest");
+        assert_eq!(routing.default_model, "stable-model");
+        assert_eq!(routing.models[0].id, "stable-model");
+        assert_eq!(routing.models[0].input_price, Some(2.5));
+        assert!(routing.log_hits);
     }
 
     #[test]

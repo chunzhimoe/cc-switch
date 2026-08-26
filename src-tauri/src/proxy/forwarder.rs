@@ -1187,6 +1187,32 @@ impl RequestForwarder {
             mapped_body
         };
 
+        // Auto-mode classifier routing is provider-scoped and only applies to the
+        // Claude Code Claude path. Resolve it after ordinary model mapping so the
+        // classifier override is the only intentional exception to that mapping.
+        let classifier_route = if matches!(app_type, AppType::Claude) {
+            provider
+                .meta
+                .as_ref()
+                .and_then(|meta| meta.classifier_routing.as_ref())
+                .and_then(|config| {
+                    super::classifier_routing::resolve_classifier_route(&mapped_body, config)
+                })
+        } else {
+            None
+        };
+        if let Some(route) = classifier_route.as_ref() {
+            super::classifier_routing::enforce_classifier_route(&mut mapped_body, route);
+            if route.log_hits {
+                log::info!(
+                    "[ClassifierRouting] provider={} hit: {} -> {}",
+                    provider.id,
+                    route.before_model.as_deref().unwrap_or("<none>"),
+                    route.model
+                );
+            }
+        }
+
         // 与 CCH 对齐：请求前不做 thinking 主动改写（仅保留兼容入口）
         let mut mapped_body = normalize_thinking_type(mapped_body);
 
@@ -1616,6 +1642,12 @@ impl RequestForwarder {
                     filtered_body = prepare_upstream_request_body(filtered_body);
                 }
             }
+        }
+        // Classifier routing is stronger than generic provider body overrides.
+        // The first rewrite happened before format conversion; this final pass
+        // protects the selected model and removes a reintroduced thinking field.
+        if let Some(route) = classifier_route.as_ref() {
+            super::classifier_routing::enforce_classifier_route(&mut filtered_body, route);
         }
         // 出站 body 定稿后刷新真值（覆盖 Codex chat 上游模型覆写、转换层模型改写）
         if let Some(m) = filtered_body

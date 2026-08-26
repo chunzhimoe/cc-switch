@@ -51,10 +51,16 @@ import {
 } from "@/lib/api/model-fetch";
 import { CustomUserAgentField } from "./CustomUserAgentField";
 import { LocalProxyRequestOverridesField } from "./LocalProxyRequestOverridesField";
+import {
+  ClassifierRoutingField,
+  DEFAULT_CLASSIFIER_ROUTING,
+  hasClassifierRoutingValue,
+} from "./ClassifierRoutingField";
 import type {
   ProviderCategory,
   ClaudeApiFormat,
   ClaudeApiKeyField,
+  ClassifierRoutingConfig,
 } from "@/types";
 import {
   hasClaudeOneMMarker,
@@ -168,6 +174,10 @@ interface ClaudeFormFieldsProps {
   onLocalProxyHeadersOverrideChange: (value: string) => void;
   localProxyBodyOverride: string;
   onLocalProxyBodyOverrideChange: (value: string) => void;
+
+  // Provider-scoped Auto classifier routing
+  classifierRouting?: ClassifierRoutingConfig;
+  onClassifierRoutingChange?: (value: ClassifierRoutingConfig) => void;
 }
 
 export function ClaudeFormFields({
@@ -239,6 +249,8 @@ export function ClaudeFormFields({
   onLocalProxyHeadersOverrideChange,
   localProxyBodyOverride,
   onLocalProxyBodyOverrideChange,
+  classifierRouting = DEFAULT_CLASSIFIER_ROUTING,
+  onClassifierRoutingChange = () => {},
 }: ClaudeFormFieldsProps) {
   const { t } = useTranslation();
   const hasRequestOverrides = Boolean(
@@ -257,7 +269,8 @@ export function ClaudeFormFields({
     (!isXaiOauthPreset && apiFormat !== "anthropic") ||
     apiKeyField !== "ANTHROPIC_AUTH_TOKEN" ||
     customUserAgent ||
-    hasRequestOverrides
+    hasRequestOverrides ||
+    hasClassifierRoutingValue(classifierRouting)
   );
   const [advancedExpanded, setAdvancedExpanded] = useState(
     isXaiOauthPreset ? false : hasAnyAdvancedValue,
@@ -1216,6 +1229,11 @@ export function ClaudeFormFields({
                 })}
               </p>
             </div>
+
+            <ClassifierRoutingField
+              value={classifierRouting}
+              onChange={onClassifierRoutingChange}
+            />
 
             <CustomUserAgentField
               id="claude-custom-user-agent"

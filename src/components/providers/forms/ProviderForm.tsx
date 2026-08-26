@@ -23,6 +23,7 @@ import type {
   CodexChatReasoning,
   PromptCacheRoutingMode,
   ClaudeApiKeyField,
+  ClassifierRoutingConfig,
 } from "@/types";
 import {
   providerPresets,
@@ -87,6 +88,10 @@ import {
   type PricingModelSourceOption,
 } from "./ProviderAdvancedConfig";
 import {
+  DEFAULT_CLASSIFIER_ROUTING,
+  hasClassifierRoutingValue,
+} from "./ClassifierRoutingField";
+import {
   useProviderCategory,
   useApiKeyState,
   useBaseUrlState,
@@ -136,6 +141,20 @@ type PresetEntry = {
     | OpenCodeProviderPreset
     | OpenClawProviderPreset
     | HermesProviderPreset;
+};
+
+const normalizeClassifierRouting = (
+  value?: Partial<ClassifierRoutingConfig>,
+): ClassifierRoutingConfig => {
+  const models = value?.models?.map((model) => ({ ...model })) ?? [];
+  return {
+    ...DEFAULT_CLASSIFIER_ROUTING,
+    enabled: value?.enabled === true,
+    strategy: value?.strategy ?? DEFAULT_CLASSIFIER_ROUTING.strategy,
+    defaultModel: value?.defaultModel?.trim() || models[0]?.id?.trim() || "",
+    models,
+    logHits: value?.logHits === true,
+  };
 };
 
 export const normalizeCodexCatalogModelsForSave = (
@@ -339,6 +358,10 @@ function ProviderFormFull({
     modelsUrl: initialData?.meta?.modelListProxy?.modelsUrl ?? "",
     stripPrefix: initialData?.meta?.modelListProxy?.stripPrefix ?? "",
   }));
+  const [classifierRouting, setClassifierRouting] =
+    useState<ClassifierRoutingConfig>(() =>
+      normalizeClassifierRouting(initialData?.meta?.classifierRouting),
+    );
 
   const { category } = useProviderCategory({
     appId,
@@ -376,6 +399,9 @@ function ProviderFormFull({
       modelsUrl: initialData?.meta?.modelListProxy?.modelsUrl ?? "",
       stripPrefix: initialData?.meta?.modelListProxy?.stripPrefix ?? "",
     });
+    setClassifierRouting(
+      normalizeClassifierRouting(initialData?.meta?.classifierRouting),
+    );
     setCodexChatReasoning(initialData?.meta?.codexChatReasoning ?? {});
     setPromptCacheRouting(initialData?.meta?.promptCacheRouting ?? "auto");
     setCustomUserAgent(initialData?.meta?.customUserAgent ?? "");
@@ -1333,6 +1359,21 @@ function ProviderFormFull({
       }
     }
 
+    // Classifier routing requires at least one usable model when enabled.
+    if (
+      appId === "claude" &&
+      classifierRouting.enabled &&
+      !classifierRouting.defaultModel.trim() &&
+      !classifierRouting.models.some((model) => model.id.trim())
+    ) {
+      toast.error(
+        t("providerForm.classifierRoutingModelRequired", {
+          defaultValue: "启用分类器分流前请至少添加一个模型",
+        }),
+      );
+      return;
+    }
+
     // 非官方供应商端点 / API Key 空：A 类
     // cloud_provider（如 Bedrock）通过模板变量处理认证，跳过通用校验
     if (category !== "official" && category !== "cloud_provider") {
@@ -1687,6 +1728,10 @@ function ProviderFormFull({
               modelsUrl: modelListProxy.modelsUrl.trim() || undefined,
               stripPrefix: modelListProxy.stripPrefix || undefined,
             }
+          : undefined,
+      classifierRouting:
+        appId === "claude" && hasClassifierRoutingValue(classifierRouting)
+          ? classifierRouting
           : undefined,
       apiFormat:
         appId === "claude" && category !== "official"
@@ -2362,6 +2407,8 @@ function ProviderFormFull({
               onLocalProxyHeadersOverrideChange={setLocalProxyHeadersOverride}
               localProxyBodyOverride={localProxyBodyOverride}
               onLocalProxyBodyOverrideChange={setLocalProxyBodyOverride}
+              classifierRouting={classifierRouting}
+              onClassifierRoutingChange={setClassifierRouting}
             />
           )}
 
