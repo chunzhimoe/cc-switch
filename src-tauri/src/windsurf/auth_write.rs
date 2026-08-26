@@ -248,7 +248,7 @@ fn encrypt_secret_payload(
     })?;
 
     let key = unsafe {
-        let mut input = CRYPT_INTEGER_BLOB {
+        let input = CRYPT_INTEGER_BLOB {
             cbData: protected.len() as u32,
             pbData: protected.as_ptr() as *mut u8,
         };
@@ -256,7 +256,7 @@ fn encrypt_secret_payload(
             cbData: 0,
             pbData: std::ptr::null_mut(),
         };
-        CryptUnprotectData(&mut input, None, None, None, None, 0, &mut output)
+        CryptUnprotectData(&input, None, None, None, None, 0, &mut output)
             .map_err(|error| AppError::Config(format!("DPAPI decrypt failed: {error}")))?;
         let result = std::slice::from_raw_parts(output.pbData, output.cbData as usize).to_vec();
         let _ = LocalFree(HLOCAL(output.pbData as *mut _));
