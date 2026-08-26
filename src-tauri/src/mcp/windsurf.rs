@@ -176,7 +176,9 @@ pub fn sync_single_server_to_windsurf(
 }
 
 pub fn remove_server_from_windsurf(id: &str) -> Result<(), AppError> {
-    let path = get_windsurf_mcp_config_path()?;
+    let Ok(path) = get_windsurf_mcp_config_path() else {
+        return Ok(());
+    };
     if !path.exists() {
         return Ok(());
     }
