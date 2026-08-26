@@ -570,7 +570,8 @@ impl SkillService {
                     "app.skills_unsupported",
                     "Windsurf 暂不支持 Skills 管理",
                     "Windsurf does not currently support Skills management",
-                ));
+                )
+                .into());
             }
         }
 
