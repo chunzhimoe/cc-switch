@@ -191,6 +191,9 @@ impl Provider {
                 str_at(settings.get("base_url")),
                 str_at(settings.get("api_key")),
             ),
+            // Windsurf account quotas are refreshed by the dedicated account service;
+            // provider rows only carry an account pointer and never expose credentials.
+            AppType::Windsurf => (String::new(), String::new()),
             // OpenClaw (openclaw.json) flattens credentials at the top level, camelCase.
             AppType::OpenClaw => (
                 str_at(settings.get("baseUrl")),

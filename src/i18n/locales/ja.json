@@ -889,7 +889,8 @@
     "grokbuild": "Grok Build",
     "opencode": "OpenCode",
     "openclaw": "OpenClaw",
-    "hermes": "Hermes"
+    "hermes": "Hermes",
+    "windsurf": "Windsurf"
   },
   "grokBuild": {
     "apiBackend": "API Backend",
@@ -1819,7 +1820,8 @@
         "grokbuild": "Grok Build",
         "opencode": "OpenCode",
         "openclaw": "OpenClaw",
-        "hermes": "Hermes"
+        "hermes": "Hermes",
+        "windsurf": "Windsurf"
       }
     },
     "userLevelPath": "ユーザーレベルの MCP パス",
@@ -2235,6 +2237,52 @@
       "loadFailed": "記憶ファイルの読み込みに失敗しました",
       "openConfig": "Hermes Web UI で上限を調整",
       "runtimeNote": "変更は Hermes の再起動または新規セッション時に反映されます。"
+    }
+  },
+  "windsurf": {
+    "title": "Windsurf アカウント",
+    "empty": "Windsurf アカウントはまだありません。ローカルセッションのインポート、メール／パスワードログイン、またはトークン追加ができます。",
+    "current": "現在",
+    "status": {
+      "running": "実行中",
+      "stopped": "停止中",
+      "pathMissing": "Windsurf/Devin 実行ファイルが見つかりません"
+    },
+    "actions": {
+      "detect": "再検出",
+      "importLocal": "ローカルアカウントをインポート",
+      "addPassword": "メール／パスワードでログイン",
+      "addToken": "トークンを追加",
+      "switch": "切り替えて再起動"
+    },
+    "notifications": {
+      "imported": "Windsurf アカウントをインポートしました: {{label}}",
+      "added": "Windsurf アカウントを追加しました",
+      "deleted": "Windsurf アカウントを削除しました",
+      "switched": "Windsurf を切り替えて再起動しました",
+      "switchedWithWarning": "アカウントを切り替えましたが、Windsurf を起動できませんでした: {{warning}}",
+      "pathDetected": "Windsurf を検出しました: {{path}}"
+    },
+    "addToken": {
+      "title": "Windsurf トークンを追加",
+      "description": "sk-ws-*、cog_*、auth1_*、devin-session-token$* に対応しています。トークンはローカルアカウントファイルにのみ保存されます。",
+      "label": "アカウント名（任意）",
+      "token": "トークン"
+    },
+    "addPassword": {
+      "title": "メール／パスワードで Windsurf にログイン",
+      "description": "Devin Auth1 のメール／パスワードログインで、ローカル IDE セッションを取得します。アカウント情報はこの端末にのみ保存されます。",
+      "label": "アカウント名（任意）",
+      "email": "メール",
+      "password": "パスワード"
+    },
+    "switchConfirm": {
+      "title": "Windsurf アカウントを切り替え",
+      "message": "Windsurf/Devin を終了し、新しいセッションを書き込んで再起動します。先に作業を保存してください。"
+    },
+    "deleteConfirm": {
+      "title": "Windsurf アカウントを削除",
+      "message": "CC Switch からアカウントを削除します。現在の Windsurf セッションは変更されません。"
     }
   },
   "env": {

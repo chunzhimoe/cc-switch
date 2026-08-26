@@ -94,6 +94,7 @@ import ToolsPanel from "@/components/openclaw/ToolsPanel";
 import AgentsDefaultsPanel from "@/components/openclaw/AgentsDefaultsPanel";
 import OpenClawHealthBanner from "@/components/openclaw/OpenClawHealthBanner";
 import HermesMemoryPanel from "@/components/hermes/HermesMemoryPanel";
+import WindsurfAccountsPanel from "@/components/windsurf/WindsurfAccountsPanel";
 
 type View =
   | "providers"
@@ -130,6 +131,7 @@ const VALID_APPS: AppId[] = [
   "opencode",
   "openclaw",
   "hermes",
+  "windsurf",
 ];
 
 const getInitialApp = (): AppId => {
@@ -198,6 +200,7 @@ function App() {
     opencode: true,
     openclaw: true,
     hermes: true,
+    windsurf: false,
   };
 
   const getFirstVisibleApp = (): AppId => {
@@ -209,6 +212,7 @@ function App() {
     if (visibleApps.opencode) return "opencode";
     if (visibleApps.openclaw) return "openclaw";
     if (visibleApps.hermes) return "hermes";
+    if (visibleApps.windsurf) return "windsurf";
     return "claude"; // fallback
   };
 
@@ -287,7 +291,8 @@ function App() {
       currentView === "openclawAgents");
   const { data: openclawHealthWarnings = [] } =
     useOpenClawHealth(isOpenClawView);
-  const hasSkillsSupport = sharedFeatureApp !== "openclaw";
+  const hasSkillsSupport =
+    sharedFeatureApp !== "openclaw" && sharedFeatureApp !== "windsurf";
   const hasSessionSupport =
     sharedFeatureApp === "claude" ||
     sharedFeatureApp === "codex" ||
@@ -966,6 +971,9 @@ function App() {
         case "openclawAgents":
           return <AgentsDefaultsPanel />;
         default:
+          if (activeApp === "windsurf") {
+            return <WindsurfAccountsPanel />;
+          }
           return (
             <div className="px-6 flex flex-col flex-1 min-h-0 overflow-hidden">
               <div className="flex-1 overflow-y-auto overflow-x-hidden pb-12 px-1">
@@ -1248,7 +1256,8 @@ function App() {
             {currentView === "providers" &&
               activeApp !== "opencode" &&
               activeApp !== "openclaw" &&
-              activeApp !== "hermes" && (
+              activeApp !== "hermes" &&
+              activeApp !== "windsurf" && (
                 <div
                   className="flex shrink-0 items-center gap-1.5"
                   style={{ WebkitAppRegion: "no-drag" } as any}
@@ -1267,6 +1276,7 @@ function App() {
                 </div>
               )}
             {currentView === "providers" &&
+              activeApp !== "windsurf" &&
               (settingsData?.showProfileSwitcher ?? true) && (
                 <div
                   className="flex shrink-0 items-center"
@@ -1557,13 +1567,15 @@ function App() {
                       </AnimatePresence>
                     </div>
 
-                    <Button
-                      onClick={() => setIsAddOpen(true)}
-                      size="icon"
-                      className={`ml-2 ${addActionButtonClass}`}
-                    >
-                      <Plus className="w-5 h-5" />
-                    </Button>
+                    {activeApp !== "windsurf" && (
+                      <Button
+                        onClick={() => setIsAddOpen(true)}
+                        size="icon"
+                        className={`ml-2 ${addActionButtonClass}`}
+                      >
+                        <Plus className="w-5 h-5" />
+                      </Button>
+                    )}
                   </>
                 )}
               </div>

@@ -527,6 +527,7 @@ fn settings_contain_common_config(app_type: &AppType, settings: &Value, snippet:
         | AppType::OpenCode
         | AppType::OpenClaw
         | AppType::Hermes
+        | AppType::Windsurf
         | AppType::ClaudeDesktop => false,
     }
 }
@@ -601,6 +602,7 @@ pub(crate) fn remove_common_config_from_settings(
         | AppType::OpenCode
         | AppType::OpenClaw
         | AppType::Hermes
+        | AppType::Windsurf
         | AppType::ClaudeDesktop => Ok(settings.clone()),
     }
 }
@@ -660,6 +662,7 @@ fn apply_common_config_to_settings(
         | AppType::OpenCode
         | AppType::OpenClaw
         | AppType::Hermes
+        | AppType::Windsurf
         | AppType::ClaudeDesktop => Ok(settings.clone()),
     }
 }
@@ -1162,6 +1165,10 @@ pub(crate) fn write_live_snapshot(app_type: &AppType, provider: &Provider) -> Re
             crate::hermes_config::set_provider(&provider.id, provider.settings_config.clone())?;
             log::debug!("Hermes provider '{}' written to live config", provider.id);
         }
+        AppType::Windsurf => {
+            crate::windsurf::inject::inject_provider(provider)?;
+            log::info!("Windsurf account '{}' written to live auth state", provider.id);
+        }
     }
     Ok(())
 }
@@ -1417,6 +1424,11 @@ pub fn read_live_settings(app_type: AppType) -> Result<Value, AppError> {
             let config = crate::hermes_config::yaml_to_json(&yaml_config)?;
             Ok(config)
         }
+        AppType::Windsurf => Err(AppError::localized(
+            "windsurf.dedicated_account_import_required",
+            "Windsurf 登录态必须通过账号管理面板导入",
+            "Windsurf authentication must be imported through the account manager",
+        )),
     }
 }
 
@@ -1524,6 +1536,13 @@ pub fn import_default_config(state: &AppState, app_type: AppType) -> Result<bool
                 "env": env_obj,
                 "config": config_obj
             })
+        }
+        AppType::Windsurf => {
+            return Err(AppError::localized(
+                "windsurf.dedicated_account_import_required",
+                "请使用 Windsurf 账号管理面板导入本机登录态",
+                "Use the Windsurf account manager to import the local authentication state",
+            ));
         }
         // OpenCode, OpenClaw and Hermes use additive mode and are handled by early return above
         AppType::OpenCode | AppType::OpenClaw | AppType::Hermes => {

@@ -26,6 +26,7 @@ pub fn prompt_file_path(app: &AppType) -> Result<PathBuf, AppError> {
         AppType::OpenCode => get_opencode_dir(),
         AppType::OpenClaw => get_openclaw_dir(),
         AppType::Hermes => crate::hermes_config::get_hermes_dir(),
+        AppType::Windsurf => crate::windsurf::paths::rules_dir()?,
         AppType::ClaudeDesktop => unreachable!("handled above"),
     };
 
@@ -35,6 +36,7 @@ pub fn prompt_file_path(app: &AppType) -> Result<PathBuf, AppError> {
         AppType::Gemini => "GEMINI.md",
         AppType::GrokBuild | AppType::OpenCode | AppType::OpenClaw => "AGENTS.md",
         AppType::Hermes => "SOUL.md",
+        AppType::Windsurf => "global_rules.md",
         AppType::ClaudeDesktop => unreachable!("handled above"),
     };
 
@@ -44,6 +46,16 @@ pub fn prompt_file_path(app: &AppType) -> Result<PathBuf, AppError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn windsurf_prompt_file_uses_global_rules_md() {
+        let path = prompt_file_path(&AppType::Windsurf).expect("Windsurf rules path");
+
+        assert_eq!(
+            path.file_name().and_then(|name| name.to_str()),
+            Some("global_rules.md")
+        );
+    }
 
     #[test]
     fn hermes_prompt_file_uses_soul_md() {

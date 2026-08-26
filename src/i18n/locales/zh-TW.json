@@ -890,7 +890,8 @@
     "grokbuild": "Grok Build",
     "opencode": "OpenCode",
     "openclaw": "OpenClaw",
-    "hermes": "Hermes"
+    "hermes": "Hermes",
+    "windsurf": "Windsurf"
   },
   "grokBuild": {
     "apiBackend": "API Backend",
@@ -1820,7 +1821,8 @@
         "grokbuild": "Grok Build",
         "opencode": "OpenCode",
         "openclaw": "OpenClaw",
-        "hermes": "Hermes"
+        "hermes": "Hermes",
+        "windsurf": "Windsurf"
       }
     },
     "userLevelPath": "使用者級 MCP 設定路徑",
@@ -2236,6 +2238,52 @@
       "loadFailed": "讀取記憶檔案失敗",
       "openConfig": "在 Hermes Web UI 調整上限",
       "runtimeNote": "變更將在 Hermes 下次啟動或建立新工作階段時生效。"
+    }
+  },
+  "windsurf": {
+    "title": "Windsurf 帳號",
+    "empty": "尚無 Windsurf 帳號。可匯入本機登入狀態、使用信箱密碼登入或新增 Token。",
+    "current": "目前",
+    "status": {
+      "running": "執行中",
+      "stopped": "未執行",
+      "pathMissing": "尚未偵測到 Windsurf/Devin 可執行檔"
+    },
+    "actions": {
+      "detect": "重新偵測",
+      "importLocal": "匯入本機帳號",
+      "addPassword": "信箱密碼登入",
+      "addToken": "新增 Token",
+      "switch": "切換並重新啟動"
+    },
+    "notifications": {
+      "imported": "已匯入 Windsurf 帳號：{{label}}",
+      "added": "Windsurf 帳號已新增",
+      "deleted": "Windsurf 帳號已刪除",
+      "switched": "已切換並重新啟動 Windsurf",
+      "switchedWithWarning": "帳號已切換，但 Windsurf 無法自動啟動：{{warning}}",
+      "pathDetected": "已偵測到 Windsurf：{{path}}"
+    },
+    "addToken": {
+      "title": "新增 Windsurf Token",
+      "description": "支援 sk-ws-*、cog_*、auth1_* 或 devin-session-token$*。Token 僅儲存在本機帳號檔案中。",
+      "label": "帳號名稱（選填）",
+      "token": "Token"
+    },
+    "addPassword": {
+      "title": "信箱密碼登入 Windsurf",
+      "description": "透過 Devin Auth1 信箱密碼登入，取得本機可用的 IDE session。帳號資訊只保存在本機。",
+      "label": "帳號名稱（選填）",
+      "email": "信箱",
+      "password": "密碼"
+    },
+    "switchConfirm": {
+      "title": "切換 Windsurf 帳號",
+      "message": "將關閉 Windsurf/Devin、寫入新帳號登入狀態並重新啟動。請先儲存編輯器中的工作。"
+    },
+    "deleteConfirm": {
+      "title": "刪除 Windsurf 帳號",
+      "message": "將從 CC Switch 刪除此帳號，不會修改目前的 Windsurf 登入狀態。"
     }
   },
   "env": {

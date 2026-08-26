@@ -67,7 +67,8 @@ impl Database {
             enabled_claude BOOLEAN NOT NULL DEFAULT 0, enabled_codex BOOLEAN NOT NULL DEFAULT 0,
             enabled_gemini BOOLEAN NOT NULL DEFAULT 0, enabled_grokbuild BOOLEAN NOT NULL DEFAULT 0,
             enabled_opencode BOOLEAN NOT NULL DEFAULT 0,
-            enabled_hermes BOOLEAN NOT NULL DEFAULT 0
+            enabled_hermes BOOLEAN NOT NULL DEFAULT 0,
+            enabled_windsurf BOOLEAN NOT NULL DEFAULT 0
         )",
             [],
         )
@@ -510,6 +511,11 @@ impl Database {
                         log::info!("迁移数据库从 v15 到 v16（重建 Codex 会话用量）");
                         Self::migrate_v15_to_v16(conn)?;
                         Self::set_user_version(conn, 16)?;
+                    }
+                    16 => {
+                        log::info!("迁移数据库从 v16 到 v17（MCP 添加 Windsurf 支持）");
+                        Self::migrate_v16_to_v17(conn)?;
+                        Self::set_user_version(conn, 17)?;
                     }
                     _ => {
                         return Err(AppError::Database(format!(
@@ -1521,6 +1527,20 @@ impl Database {
     fn migrate_v15_to_v16(conn: &Connection) -> Result<(), AppError> {
         let codex_dir = crate::codex_config::get_codex_config_dir();
         crate::services::session_usage_codex::reset_codex_usage_on_conn(conn, &codex_dir)
+    }
+
+    /// v16 -> v17: persist Windsurf enablement for unified MCP management.
+    /// Rules use the existing generic prompts table and need no schema change.
+    fn migrate_v16_to_v17(conn: &Connection) -> Result<(), AppError> {
+        if Self::table_exists(conn, "mcp_servers")? {
+            Self::add_column_if_missing(
+                conn,
+                "mcp_servers",
+                "enabled_windsurf",
+                "BOOLEAN NOT NULL DEFAULT 0",
+            )?;
+        }
+        Ok(())
     }
 
     /// 插入默认模型定价数据
@@ -3192,6 +3212,36 @@ mod tests {
         )?;
         assert_eq!(mcp_values, (1, 0));
         assert_eq!(skill_values, (1, 0));
+
+        Ok(())
+    }
+
+    #[test]
+    fn migrate_v16_to_v17_adds_windsurf_mcp_flag() -> Result<(), AppError> {
+        let conn = Connection::open_in_memory()?;
+        conn.execute_batch(
+            "CREATE TABLE mcp_servers (
+                id TEXT PRIMARY KEY,
+                enabled_hermes BOOLEAN NOT NULL DEFAULT 0
+            );
+            INSERT INTO mcp_servers (id, enabled_hermes) VALUES ('mcp-1', 1);",
+        )?;
+        Database::set_user_version(&conn, 16)?;
+
+        Database::apply_schema_migrations_on_conn(&conn)?;
+
+        assert_eq!(Database::get_user_version(&conn)?, SCHEMA_VERSION);
+        assert!(Database::has_column(
+            &conn,
+            "mcp_servers",
+            "enabled_windsurf"
+        )?);
+        let values: (i64, i64) = conn.query_row(
+            "SELECT enabled_hermes, enabled_windsurf FROM mcp_servers WHERE id = 'mcp-1'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+        assert_eq!(values, (1, 0));
 
         Ok(())
     }

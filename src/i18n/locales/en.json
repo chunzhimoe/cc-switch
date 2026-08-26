@@ -889,7 +889,8 @@
     "grokbuild": "Grok Build",
     "opencode": "OpenCode",
     "openclaw": "OpenClaw",
-    "hermes": "Hermes"
+    "hermes": "Hermes",
+    "windsurf": "Windsurf"
   },
   "grokBuild": {
     "apiBackend": "API backend",
@@ -1819,7 +1820,8 @@
         "grokbuild": "Grok Build",
         "opencode": "OpenCode",
         "openclaw": "OpenClaw",
-        "hermes": "Hermes"
+        "hermes": "Hermes",
+        "windsurf": "Windsurf"
       }
     },
     "userLevelPath": "User-level MCP path",
@@ -2235,6 +2237,52 @@
       "loadFailed": "Failed to read memory file",
       "openConfig": "Adjust limits in Hermes Web UI",
       "runtimeNote": "Changes apply on Hermes restart or new session."
+    }
+  },
+  "windsurf": {
+    "title": "Windsurf accounts",
+    "empty": "No Windsurf accounts yet. Import the local session, sign in with email/password, or add a token.",
+    "current": "Current",
+    "status": {
+      "running": "Running",
+      "stopped": "Stopped",
+      "pathMissing": "Windsurf/Devin executable not detected"
+    },
+    "actions": {
+      "detect": "Detect again",
+      "importLocal": "Import local account",
+      "addPassword": "Email/password login",
+      "addToken": "Add token",
+      "switch": "Switch and restart"
+    },
+    "notifications": {
+      "imported": "Imported Windsurf account: {{label}}",
+      "added": "Windsurf account added",
+      "deleted": "Windsurf account deleted",
+      "switched": "Windsurf switched and restarted",
+      "switchedWithWarning": "Account switched, but Windsurf could not start: {{warning}}",
+      "pathDetected": "Windsurf detected: {{path}}"
+    },
+    "addToken": {
+      "title": "Add Windsurf token",
+      "description": "Supports sk-ws-*, cog_*, auth1_* and devin-session-token$*. Tokens stay in local account files.",
+      "label": "Account label (optional)",
+      "token": "Token"
+    },
+    "addPassword": {
+      "title": "Sign in to Windsurf with email/password",
+      "description": "Uses Devin Auth1 email/password login to obtain a local IDE session. Account data stays on this machine.",
+      "label": "Account label (optional)",
+      "email": "Email",
+      "password": "Password"
+    },
+    "switchConfirm": {
+      "title": "Switch Windsurf account",
+      "message": "Windsurf/Devin will close, receive the new session, and restart. Save your editor work first."
+    },
+    "deleteConfirm": {
+      "title": "Delete Windsurf account",
+      "message": "This removes the account from CC Switch without changing the current Windsurf session."
     }
   },
   "env": {

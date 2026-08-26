@@ -889,7 +889,8 @@
     "grokbuild": "Grok Build",
     "opencode": "OpenCode",
     "openclaw": "OpenClaw",
-    "hermes": "Hermes"
+    "hermes": "Hermes",
+    "windsurf": "Windsurf"
   },
   "grokBuild": {
     "apiBackend": "API Backend",
@@ -1819,7 +1820,8 @@
         "grokbuild": "Grok Build",
         "opencode": "OpenCode",
         "openclaw": "OpenClaw",
-        "hermes": "Hermes"
+        "hermes": "Hermes",
+        "windsurf": "Windsurf"
       }
     },
     "userLevelPath": "用户级 MCP 配置路径",
@@ -2235,6 +2237,52 @@
       "loadFailed": "读取记忆文件失败",
       "openConfig": "在 Hermes Web UI 调整上限",
       "runtimeNote": "更改将在 Hermes 下次启动或新建会话时生效。"
+    }
+  },
+  "windsurf": {
+    "title": "Windsurf 账号",
+    "empty": "还没有 Windsurf 账号。可导入本机登录态、邮箱密码登录或添加 Token。",
+    "current": "当前",
+    "status": {
+      "running": "运行中",
+      "stopped": "未运行",
+      "pathMissing": "尚未检测到 Windsurf/Devin 可执行文件"
+    },
+    "actions": {
+      "detect": "重新检测",
+      "importLocal": "导入本机账号",
+      "addPassword": "邮箱密码登录",
+      "addToken": "添加 Token",
+      "switch": "切换并重启"
+    },
+    "notifications": {
+      "imported": "已导入 Windsurf 账号：{{label}}",
+      "added": "Windsurf 账号已添加",
+      "deleted": "Windsurf 账号已删除",
+      "switched": "已切换并重启 Windsurf",
+      "switchedWithWarning": "账号已切换，但 Windsurf 未能自动启动：{{warning}}",
+      "pathDetected": "已检测到 Windsurf：{{path}}"
+    },
+    "addToken": {
+      "title": "添加 Windsurf Token",
+      "description": "支持 sk-ws-*、cog_*、auth1_* 或 devin-session-token$*。Token 只保存在本机账号文件中。",
+      "label": "账号名称（可选）",
+      "token": "Token"
+    },
+    "addPassword": {
+      "title": "邮箱密码登录 Windsurf",
+      "description": "通过 Devin Auth1 邮箱密码登录，换取本机可用的 IDE session。账号信息只保存在本机。",
+      "label": "账号名称（可选）",
+      "email": "邮箱",
+      "password": "密码"
+    },
+    "switchConfirm": {
+      "title": "切换 Windsurf 账号",
+      "message": "将关闭 Windsurf/Devin、写入新账号登录态并重新启动。请先保存编辑器中的工作。"
+    },
+    "deleteConfirm": {
+      "title": "删除 Windsurf 账号",
+      "message": "将从 cc-switch 删除此账号，不会修改当前 Windsurf 登录态。"
     }
   },
   "env": {
