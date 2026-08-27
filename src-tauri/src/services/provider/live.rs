@@ -218,10 +218,7 @@ fn apply_claude_auto_mode_model(settings: &mut Value, provider: &Provider) {
         return;
     };
 
-    env.insert(
-        CLAUDE_CODE_AUTO_MODE_MODEL_ENV.to_string(),
-        selected_model,
-    );
+    env.insert(CLAUDE_CODE_AUTO_MODE_MODEL_ENV.to_string(), selected_model);
 }
 
 pub(crate) fn sanitize_claude_settings_for_live(settings: &Value) -> Value {

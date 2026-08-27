@@ -70,10 +70,7 @@ pub fn is_auto_mode_classifier_request(body: &Value) -> bool {
         return false;
     };
 
-    blocks
-        .iter()
-        .filter_map(block_text)
-        .any(starts_with_marker)
+    blocks.iter().filter_map(block_text).any(starts_with_marker)
 }
 
 pub fn classifier_system_shape(body: &Value) -> (&'static str, usize) {
@@ -290,24 +287,39 @@ mod tests {
     fn picks_each_strategy_and_falls_back_safely() {
         let mut fixed = config();
         fixed.strategy = "fixed".to_string();
-        assert_eq!(pick_classifier_model(&fixed).as_deref(), Some("default-model"));
+        assert_eq!(
+            pick_classifier_model(&fixed).as_deref(),
+            Some("default-model")
+        );
 
-        assert_eq!(pick_classifier_model(&config()).as_deref(), Some("first-model"));
+        assert_eq!(
+            pick_classifier_model(&config()).as_deref(),
+            Some("first-model")
+        );
 
         let mut cheapest = config();
         cheapest.strategy = "cheapest".to_string();
-        assert_eq!(pick_classifier_model(&cheapest).as_deref(), Some("cheap-model"));
+        assert_eq!(
+            pick_classifier_model(&cheapest).as_deref(),
+            Some("cheap-model")
+        );
 
         let mut unknown = config();
         unknown.strategy = "future_strategy".to_string();
-        assert_eq!(pick_classifier_model(&unknown).as_deref(), Some("first-model"));
+        assert_eq!(
+            pick_classifier_model(&unknown).as_deref(),
+            Some("first-model")
+        );
 
         let mut no_prices = cheapest.clone();
         no_prices.models.iter_mut().for_each(|entry| {
             entry.input_price = None;
             entry.output_price = None;
         });
-        assert_eq!(pick_classifier_model(&no_prices).as_deref(), Some("default-model"));
+        assert_eq!(
+            pick_classifier_model(&no_prices).as_deref(),
+            Some("default-model")
+        );
     }
 
     #[test]

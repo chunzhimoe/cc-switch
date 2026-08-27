@@ -295,10 +295,7 @@ async fn handle_callback(
     let state = params.get("state").cloned().unwrap_or_default();
     let access_token = params.get("access_token").cloned().unwrap_or_default();
     let error = params.get("error").cloned();
-    let error_desc = params
-        .get("error_description")
-        .cloned()
-        .unwrap_or_default();
+    let error_desc = params.get("error_description").cloned().unwrap_or_default();
 
     if state != server.expected_state {
         return (
@@ -620,7 +617,9 @@ async fn post_seat_management_json(
     })
 }
 
-async fn register_user(firebase_id_token: &str) -> Result<(String, String, Option<String>), String> {
+async fn register_user(
+    firebase_id_token: &str,
+) -> Result<(String, String, Option<String>), String> {
     let value = post_seat_management_json(
         WINDSURF_REGISTER_API_BASE_URL,
         "RegisterUser",
