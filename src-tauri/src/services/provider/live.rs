@@ -13,6 +13,7 @@ use crate::config::{delete_file, get_claude_settings_path, read_json_file, write
 use crate::database::Database;
 use crate::error::AppError;
 use crate::provider::Provider;
+use crate::proxy::classifier_routing::pick_classifier_model;
 use crate::services::mcp::McpService;
 use crate::store::AppState;
 
@@ -30,6 +31,7 @@ use super::normalize_claude_models_in_value;
 const CODEX_OAUTH_CLAUDE_MAX_CONTEXT_TOKENS: &str = "372000";
 const CODEX_OAUTH_CLAUDE_AUTO_COMPACT_WINDOW: &str = "372000";
 const KIMI_FOR_CODING_CONTEXT_TOKENS: &str = "262144";
+const CLAUDE_CODE_AUTO_MODE_MODEL_ENV: &str = "CLAUDE_CODE_AUTO_MODE_MODEL";
 
 /// Model env keys Claude Code may route requests through. The defaults above
 /// are calibrated against gpt-5.6's Codex catalog, so every configured model
@@ -161,6 +163,65 @@ fn apply_kimi_for_coding_context_defaults(settings: &mut Value, provider: &Provi
             .unwrap_or_else(|| Value::String(KIMI_FOR_CODING_CONTEXT_TOKENS.to_string()));
         env.insert(key.to_string(), value);
     }
+}
+
+/// Project the provider-scoped classifier selection into Claude Code's own
+/// direct-mode environment. Claude Code reads this value before constructing
+/// the Auto safety-classifier request, so the provider may keep an external
+/// `ANTHROPIC_BASE_URL` and does not need local proxy takeover.
+fn apply_claude_auto_mode_model(settings: &mut Value, provider: &Provider) {
+    let Some(config) = provider
+        .meta
+        .as_ref()
+        .and_then(|meta| meta.classifier_routing.as_ref())
+    else {
+        return;
+    };
+    if !config.enabled {
+        return;
+    }
+
+    let provider_env = provider
+        .settings_config
+        .get("env")
+        .and_then(Value::as_object);
+    let explicit_model = provider_env
+        .and_then(|env| env.get(CLAUDE_CODE_AUTO_MODE_MODEL_ENV))
+        .cloned();
+    let selected_model = match explicit_model {
+        Some(value) => value,
+        None => {
+            let Some(model) = pick_classifier_model(config) else {
+                log::warn!(
+                    "Cannot project Claude Auto classifier model for '{}': routing is enabled but no model is selectable",
+                    provider.id
+                );
+                return;
+            };
+            Value::String(model)
+        }
+    };
+
+    let Some(root) = settings.as_object_mut() else {
+        log::warn!(
+            "Cannot project Claude Auto classifier model for '{}': settings are not an object",
+            provider.id
+        );
+        return;
+    };
+    let env = root.entry("env".to_string()).or_insert_with(|| json!({}));
+    let Some(env) = env.as_object_mut() else {
+        log::warn!(
+            "Cannot project Claude Auto classifier model for '{}': env is not an object",
+            provider.id
+        );
+        return;
+    };
+
+    env.insert(
+        CLAUDE_CODE_AUTO_MODE_MODEL_ENV.to_string(),
+        selected_model,
+    );
 }
 
 pub(crate) fn sanitize_claude_settings_for_live(settings: &Value) -> Value {
@@ -693,6 +754,7 @@ pub(crate) fn build_effective_settings_with_common_config(
     if matches!(app_type, AppType::Claude) {
         apply_codex_oauth_claude_context_defaults(&mut effective_settings, provider);
         apply_kimi_for_coding_context_defaults(&mut effective_settings, provider);
+        apply_claude_auto_mode_model(&mut effective_settings, provider);
     }
 
     Ok(effective_settings)
@@ -825,6 +887,49 @@ fn strip_injected_kimi_for_coding_context_defaults(settings: &mut Value, provide
     }
 }
 
+/// Reverse `apply_claude_auto_mode_model` during switch-away backfill. The
+/// derived classifier model belongs to provider metadata, not settingsConfig;
+/// if the provider also stores a low-level env value explicitly, restore that
+/// original value instead of replacing it with the derived projection.
+fn strip_injected_claude_auto_mode_model(settings: &mut Value, provider: &Provider) {
+    let Some(config) = provider
+        .meta
+        .as_ref()
+        .and_then(|meta| meta.classifier_routing.as_ref())
+    else {
+        return;
+    };
+    if !config.enabled {
+        return;
+    }
+    let Some(injected_model) = pick_classifier_model(config) else {
+        return;
+    };
+
+    let stored_value = provider
+        .settings_config
+        .get("env")
+        .and_then(Value::as_object)
+        .and_then(|env| env.get(CLAUDE_CODE_AUTO_MODE_MODEL_ENV))
+        .cloned();
+    let Some(env) = settings.get_mut("env").and_then(Value::as_object_mut) else {
+        return;
+    };
+    if env
+        .get(CLAUDE_CODE_AUTO_MODE_MODEL_ENV)
+        .and_then(Value::as_str)
+        != Some(injected_model.as_str())
+    {
+        return;
+    }
+
+    if let Some(stored_value) = stored_value {
+        env.insert(CLAUDE_CODE_AUTO_MODE_MODEL_ENV.to_string(), stored_value);
+    } else {
+        env.remove(CLAUDE_CODE_AUTO_MODE_MODEL_ENV);
+    }
+}
+
 fn restore_live_settings_for_provider_backfill(
     app_type: &AppType,
     provider: &Provider,
@@ -834,6 +939,7 @@ fn restore_live_settings_for_provider_backfill(
         let mut settings = live_settings;
         strip_injected_codex_oauth_context_defaults(&mut settings, provider);
         strip_injected_kimi_for_coding_context_defaults(&mut settings, provider);
+        strip_injected_claude_auto_mode_model(&mut settings, provider);
         return settings;
     }
     if matches!(app_type, AppType::GrokBuild) {
@@ -1999,6 +2105,171 @@ pub fn remove_openclaw_provider_from_live(provider_id: &str) -> Result<(), AppEr
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn claude_classifier_projection_supports_external_direct_url() {
+        let db = Database::memory().expect("create memory db");
+        let mut provider = Provider::with_id(
+            "external-claude".to_string(),
+            "External Claude".to_string(),
+            json!({
+                "env": {
+                    "ANTHROPIC_BASE_URL": "https://external.example.test",
+                    "ANTHROPIC_MODEL": "gpt-5.6-sol"
+                }
+            }),
+            None,
+        );
+        provider.meta = Some(crate::provider::ProviderMeta {
+            classifier_routing: Some(crate::provider::ClassifierRoutingConfig {
+                enabled: true,
+                strategy: "cheapest".to_string(),
+                default_model: "fallback-classifier".to_string(),
+                models: vec![
+                    crate::provider::ClassifierModelEntry {
+                        id: "expensive-classifier".to_string(),
+                        note: None,
+                        input_price: Some(1.0),
+                        output_price: Some(1.0),
+                    },
+                    crate::provider::ClassifierModelEntry {
+                        id: "cheap-classifier".to_string(),
+                        note: None,
+                        input_price: Some(0.1),
+                        output_price: Some(0.2),
+                    },
+                ],
+                log_hits: false,
+            }),
+            ..Default::default()
+        });
+
+        let effective =
+            build_effective_settings_with_common_config(&db, &AppType::Claude, &provider)
+                .expect("build effective settings");
+
+        assert_eq!(
+            effective["env"]["ANTHROPIC_BASE_URL"],
+            json!("https://external.example.test")
+        );
+        assert_eq!(
+            effective["env"][CLAUDE_CODE_AUTO_MODE_MODEL_ENV],
+            json!("cheap-classifier")
+        );
+        assert!(provider.settings_config["env"]
+            .get(CLAUDE_CODE_AUTO_MODE_MODEL_ENV)
+            .is_none());
+    }
+
+    #[test]
+    fn claude_classifier_projection_is_removed_from_switch_backfill() {
+        let db = Database::memory().expect("create memory db");
+        let mut provider = Provider::with_id(
+            "external-claude".to_string(),
+            "External Claude".to_string(),
+            json!({
+                "env": {
+                    "ANTHROPIC_BASE_URL": "https://api.example.test",
+                    "ANTHROPIC_MODEL": "gpt-5.6-sol"
+                }
+            }),
+            None,
+        );
+        provider.meta = Some(crate::provider::ProviderMeta {
+            classifier_routing: Some(crate::provider::ClassifierRoutingConfig {
+                enabled: true,
+                strategy: "fixed".to_string(),
+                default_model: "managed-classifier".to_string(),
+                models: vec![],
+                log_hits: false,
+            }),
+            ..Default::default()
+        });
+
+        let live = build_effective_settings_with_common_config(&db, &AppType::Claude, &provider)
+            .expect("build effective settings");
+        assert_eq!(
+            live["env"][CLAUDE_CODE_AUTO_MODE_MODEL_ENV],
+            json!("managed-classifier")
+        );
+
+        let backfilled =
+            strip_common_config_from_live_settings(&db, &AppType::Claude, &provider, live);
+        assert!(backfilled["env"]
+            .get(CLAUDE_CODE_AUTO_MODE_MODEL_ENV)
+            .is_none());
+        assert_eq!(
+            backfilled["env"]["ANTHROPIC_BASE_URL"],
+            json!("https://api.example.test")
+        );
+    }
+
+    #[test]
+    fn claude_classifier_projection_preserves_explicit_env_value_and_backfill() {
+        let db = Database::memory().expect("create memory db");
+        let mut provider = Provider::with_id(
+            "external-claude".to_string(),
+            "External Claude".to_string(),
+            json!({
+                "env": {
+                    "CLAUDE_CODE_AUTO_MODE_MODEL": "manual-classifier"
+                }
+            }),
+            None,
+        );
+        provider.meta = Some(crate::provider::ProviderMeta {
+            classifier_routing: Some(crate::provider::ClassifierRoutingConfig {
+                enabled: true,
+                strategy: "fixed".to_string(),
+                default_model: "managed-classifier".to_string(),
+                models: vec![],
+                log_hits: false,
+            }),
+            ..Default::default()
+        });
+
+        let live = build_effective_settings_with_common_config(&db, &AppType::Claude, &provider)
+            .expect("build effective settings");
+        assert_eq!(
+            live["env"][CLAUDE_CODE_AUTO_MODE_MODEL_ENV],
+            json!("manual-classifier")
+        );
+
+        let backfilled =
+            strip_common_config_from_live_settings(&db, &AppType::Claude, &provider, live);
+        assert_eq!(
+            backfilled["env"][CLAUDE_CODE_AUTO_MODE_MODEL_ENV],
+            json!("manual-classifier")
+        );
+    }
+
+    #[test]
+    fn empty_classifier_projection_does_not_create_env_value() {
+        let db = Database::memory().expect("create memory db");
+        let mut provider = Provider::with_id(
+            "external-claude".to_string(),
+            "External Claude".to_string(),
+            json!({ "env": { "ANTHROPIC_BASE_URL": "https://api.example.test" } }),
+            None,
+        );
+        provider.meta = Some(crate::provider::ProviderMeta {
+            classifier_routing: Some(crate::provider::ClassifierRoutingConfig {
+                enabled: true,
+                strategy: "priority_list".to_string(),
+                default_model: String::new(),
+                models: vec![],
+                log_hits: false,
+            }),
+            ..Default::default()
+        });
+
+        let effective =
+            build_effective_settings_with_common_config(&db, &AppType::Claude, &provider)
+                .expect("build effective settings");
+        assert!(effective["env"]
+            .get(CLAUDE_CODE_AUTO_MODE_MODEL_ENV)
+            .is_none());
+    }
 
     #[test]
     fn kimi_for_coding_effective_settings_backfill_256k_context() {

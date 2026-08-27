@@ -3,6 +3,8 @@
 use crate::provider::ClassifierRoutingConfig;
 use serde_json::Value;
 
+use super::providers::transform::strip_leading_anthropic_billing_header;
+
 pub const CLASSIFIER_SYSTEM_MARKER: &str =
     "You are a security monitor for autonomous AI coding agents.";
 
@@ -11,6 +13,14 @@ pub struct ClassifierRoute {
     pub before_model: Option<String>,
     pub model: String,
     pub log_hits: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ClassifierRouteDecision {
+    Disabled,
+    NotClassifier,
+    NoModel,
+    Hit(ClassifierRoute),
 }
 
 fn block_text(block: &Value) -> Option<&str> {
@@ -25,8 +35,7 @@ fn block_text(block: &Value) -> Option<&str> {
     None
 }
 
-/// Match the Claudish behavior without allocating a trimmed copy of the system block.
-fn starts_with_marker(text: &str) -> bool {
+fn trim_ascii_leading_whitespace(text: &str) -> &str {
     let mut index = 0;
     while index < text.len() {
         let ch = text.as_bytes()[index];
@@ -35,9 +44,16 @@ fn starts_with_marker(text: &str) -> bool {
         }
         index += 1;
     }
+    text.get(index..).unwrap_or_default()
+}
 
-    text.get(index..)
-        .is_some_and(|candidate| candidate.starts_with(CLASSIFIER_SYSTEM_MARKER))
+/// Match the classifier marker after optional whitespace and one known Claude
+/// Code billing-attribution line. Later occurrences remain untouched so normal
+/// user prompts containing the marker are not misclassified.
+fn starts_with_marker(text: &str) -> bool {
+    let candidate = trim_ascii_leading_whitespace(text);
+    let candidate = strip_leading_anthropic_billing_header(candidate);
+    trim_ascii_leading_whitespace(candidate).starts_with(CLASSIFIER_SYSTEM_MARKER)
 }
 
 /// Return true when any Claude Messages system text block starts with the marker.
@@ -58,6 +74,15 @@ pub fn is_auto_mode_classifier_request(body: &Value) -> bool {
         .iter()
         .filter_map(block_text)
         .any(starts_with_marker)
+}
+
+pub fn classifier_system_shape(body: &Value) -> (&'static str, usize) {
+    match body.get("system") {
+        Some(Value::String(_)) => ("string", 1),
+        Some(Value::Array(blocks)) => ("array", blocks.len()),
+        Some(_) => ("other", 0),
+        None => ("missing", 0),
+    }
 }
 
 fn valid_model_id(value: &str) -> Option<String> {
@@ -107,23 +132,39 @@ pub fn pick_classifier_model(config: &ClassifierRoutingConfig) -> Option<String>
     }
 }
 
+pub fn diagnose_classifier_route(
+    body: &Value,
+    config: &ClassifierRoutingConfig,
+) -> ClassifierRouteDecision {
+    if !config.enabled {
+        return ClassifierRouteDecision::Disabled;
+    }
+    if !is_auto_mode_classifier_request(body) {
+        return ClassifierRouteDecision::NotClassifier;
+    }
+    let Some(model) = pick_classifier_model(config) else {
+        return ClassifierRouteDecision::NoModel;
+    };
+
+    ClassifierRouteDecision::Hit(ClassifierRoute {
+        before_model: body
+            .get("model")
+            .and_then(Value::as_str)
+            .map(ToString::to_string),
+        model,
+        log_hits: config.log_hits,
+    })
+}
+
 /// Resolve a route from the original, pre-transform Anthropic request body.
 pub fn resolve_classifier_route(
     body: &Value,
     config: &ClassifierRoutingConfig,
 ) -> Option<ClassifierRoute> {
-    if !config.enabled || !is_auto_mode_classifier_request(body) {
-        return None;
+    match diagnose_classifier_route(body, config) {
+        ClassifierRouteDecision::Hit(route) => Some(route),
+        _ => None,
     }
-
-    Some(ClassifierRoute {
-        before_model: body
-            .get("model")
-            .and_then(Value::as_str)
-            .map(ToString::to_string),
-        model: pick_classifier_model(config)?,
-        log_hits: config.log_hits,
-    })
 }
 
 /// Apply the classifier model and remove thinking, matching Claudish's rewrite.
@@ -191,6 +232,41 @@ mod tests {
     }
 
     #[test]
+    fn detects_billing_prefixed_classifier_system_shapes() {
+        for separator in ["\n", "\r\n\r\n"] {
+            let body = json!({
+                "system": format!(
+                    "  x-anthropic-billing-header: cc_version=test{separator}{} Evaluate.",
+                    CLASSIFIER_SYSTEM_MARKER
+                )
+            });
+            assert!(is_auto_mode_classifier_request(&body));
+        }
+
+        let block_body = json!({
+            "system": [{
+                "type": "text",
+                "text": format!(
+                    "x-anthropic-billing-header: opaque\n\n{} Evaluate.",
+                    CLASSIFIER_SYSTEM_MARKER
+                )
+            }]
+        });
+        assert!(is_auto_mode_classifier_request(&block_body));
+    }
+
+    #[test]
+    fn rejects_billing_header_and_marker_after_user_preamble() {
+        let body = json!({
+            "system": format!(
+                "User preamble\nx-anthropic-billing-header: opaque\n{} Evaluate.",
+                CLASSIFIER_SYSTEM_MARKER
+            )
+        });
+        assert!(!is_auto_mode_classifier_request(&body));
+    }
+
+    #[test]
     fn rejects_main_prompt_and_mid_block_marker() {
         assert!(!is_auto_mode_classifier_request(&json!({
             "system": "You are Claude Code, Anthropic's official CLI for Claude."
@@ -232,6 +308,42 @@ mod tests {
             entry.output_price = None;
         });
         assert_eq!(pick_classifier_model(&no_prices).as_deref(), Some("default-model"));
+    }
+
+    #[test]
+    fn diagnoses_disabled_non_classifier_no_model_and_hit() {
+        let body = classifier_body();
+
+        let mut disabled = config();
+        disabled.enabled = false;
+        assert_eq!(
+            diagnose_classifier_route(&body, &disabled),
+            ClassifierRouteDecision::Disabled
+        );
+
+        assert_eq!(
+            diagnose_classifier_route(
+                &json!({"model": "main", "system": "You are Claude Code."}),
+                &config()
+            ),
+            ClassifierRouteDecision::NotClassifier
+        );
+
+        let mut empty = config();
+        empty.default_model.clear();
+        empty.models.clear();
+        assert_eq!(
+            diagnose_classifier_route(&body, &empty),
+            ClassifierRouteDecision::NoModel
+        );
+
+        match diagnose_classifier_route(&body, &config()) {
+            ClassifierRouteDecision::Hit(route) => {
+                assert_eq!(route.model, "first-model");
+                assert_eq!(route.before_model.as_deref(), Some("claude-sonnet-5"));
+            }
+            decision => panic!("expected classifier hit, got {decision:?}"),
+        }
     }
 
     #[test]

@@ -1,6 +1,13 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowDown, ArrowUp, Plus, Star, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowDown,
+  ArrowUp,
+  Plus,
+  Star,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FormLabel } from "@/components/ui/form";
@@ -173,6 +180,11 @@ export function ClassifierRoutingField({
     },
   ];
 
+  const hasPickableModel = Boolean(
+    value.defaultModel.trim() ||
+      value.models.some((model) => model.id.trim().length > 0),
+  );
+
   return (
     <div className="space-y-4 border-t border-border-default pt-4">
       <div className="space-y-1">
@@ -184,7 +196,7 @@ export function ClassifierRoutingField({
         <p className="text-xs text-muted-foreground">
           {t("providerForm.classifierRoutingDescription", {
             defaultValue:
-              "主模型由本供应商的模型映射决定；此处仅覆盖 Auto 模式安全分类器请求中的 model 字段。",
+              "主模型仍由本供应商的模型映射决定；此处为 Claude Code Auto 模式安全分类器单独选择模型。",
           })}
         </p>
       </div>
@@ -201,9 +213,32 @@ export function ClassifierRoutingField({
       <p className="text-xs text-muted-foreground">
         {t("providerForm.classifierRoutingScopeHint", {
           defaultValue:
-            "仅当本供应商是当前本地代理路由目标，并命中 Auto 安全分类器时生效。",
+            "直连外部 API URL 时通过 Claude Code 的 CLAUDE_CODE_AUTO_MODE_MODEL 生效，无需本地代理；代理模式仍按请求分流。",
         })}
       </p>
+
+      {value.enabled && (
+        <div
+          role="status"
+          className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-200"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <p>
+            {t("providerForm.classifierRoutingRestartRequired", {
+              defaultValue:
+                "保存当前供应商后，请完全重启正在运行的 Claude Code；已启动的会话不会重新读取分类器模型环境变量。",
+            })}
+          </p>
+        </div>
+      )}
+
+      {value.enabled && !hasPickableModel && (
+        <p className="text-xs text-destructive" role="alert">
+          {t("providerForm.classifierRoutingNoPickableModel", {
+            defaultValue: "请至少添加一个可用的分类器模型后再保存。",
+          })}
+        </p>
+      )}
 
       <div className="space-y-2">
         <FormLabel>
@@ -413,7 +448,7 @@ export function ClassifierRoutingField({
           onCheckedChange={(checked) => update({ logHits: checked === true })}
         />
         {t("providerForm.classifierRoutingLogHits", {
-          defaultValue: "命中时写调试日志",
+          defaultValue: "本地代理命中时写调试日志",
         })}
       </label>
     </div>

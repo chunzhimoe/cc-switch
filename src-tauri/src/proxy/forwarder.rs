@@ -1197,21 +1197,51 @@ impl RequestForwarder {
                 .as_ref()
                 .and_then(|meta| meta.classifier_routing.as_ref())
                 .and_then(|config| {
-                    super::classifier_routing::resolve_classifier_route(&mapped_body, config)
+                    match super::classifier_routing::diagnose_classifier_route(
+                        &mapped_body,
+                        config,
+                    ) {
+                        super::classifier_routing::ClassifierRouteDecision::Disabled => None,
+                        super::classifier_routing::ClassifierRouteDecision::NotClassifier => {
+                            let (system_kind, system_blocks) =
+                                super::classifier_routing::classifier_system_shape(&mapped_body);
+                            log::debug!(
+                                "[ClassifierRouting] provider={} skip reason=not_classifier system_kind={} system_blocks={}",
+                                provider.id,
+                                system_kind,
+                                system_blocks
+                            );
+                            None
+                        }
+                        super::classifier_routing::ClassifierRouteDecision::NoModel => {
+                            log::warn!(
+                                "[ClassifierRouting] provider={} skip reason=no_model strategy={} default_empty={} models={}",
+                                provider.id,
+                                config.strategy,
+                                config.default_model.trim().is_empty(),
+                                config.models.len()
+                            );
+                            None
+                        }
+                        super::classifier_routing::ClassifierRouteDecision::Hit(route) => {
+                            if route.log_hits {
+                                log::info!(
+                                    "[ClassifierRouting] provider={} hit: {} -> {} strategy={}",
+                                    provider.id,
+                                    route.before_model.as_deref().unwrap_or("<none>"),
+                                    route.model,
+                                    config.strategy
+                                );
+                            }
+                            Some(route)
+                        }
+                    }
                 })
         } else {
             None
         };
         if let Some(route) = classifier_route.as_ref() {
             super::classifier_routing::enforce_classifier_route(&mut mapped_body, route);
-            if route.log_hits {
-                log::info!(
-                    "[ClassifierRouting] provider={} hit: {} -> {}",
-                    provider.id,
-                    route.before_model.as_deref().unwrap_or("<none>"),
-                    route.model
-                );
-            }
         }
 
         // 与 CCH 对齐：请求前不做 thinking 主动改写（仅保留兼容入口）
