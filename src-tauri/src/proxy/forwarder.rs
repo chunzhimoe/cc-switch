@@ -1172,20 +1172,21 @@ impl RequestForwarder {
         // 映射成真实上游模型名，并且未知 route 要直接报错，不能使用默认模型兜底。
         // Global models are already restored to an exact upstream id and bypass
         // the Desktop route table, which only knows locally configured routes.
-        let mapped_body = if matches!(app_type, AppType::ClaudeDesktop) && !restored_global_model {
-            crate::claude_desktop_config::map_proxy_request_model(body, provider)
-                .map_err(|e| ProxyError::InvalidRequest(e.to_string()))?
-        } else if matches!(app_type, AppType::ClaudeDesktop) {
-            body
-        } else if restored_global_model {
-            // Exact upstream id from the global models response wins over Claude
-            // tier/default mappings configured for the provider.
-            body
-        } else {
-            let (mapped_body, _original_model, _mapped_model) =
-                super::model_mapper::apply_model_mapping(body, provider);
-            mapped_body
-        };
+        let mut mapped_body =
+            if matches!(app_type, AppType::ClaudeDesktop) && !restored_global_model {
+                crate::claude_desktop_config::map_proxy_request_model(body, provider)
+                    .map_err(|e| ProxyError::InvalidRequest(e.to_string()))?
+            } else if matches!(app_type, AppType::ClaudeDesktop) {
+                body
+            } else if restored_global_model {
+                // Exact upstream id from the global models response wins over Claude
+                // tier/default mappings configured for the provider.
+                body
+            } else {
+                let (mapped_body, _original_model, _mapped_model) =
+                    super::model_mapper::apply_model_mapping(body, provider);
+                mapped_body
+            };
 
         // Auto-mode classifier routing is provider-scoped and only applies to the
         // Claude Code Claude path. Resolve it after ordinary model mapping so the
