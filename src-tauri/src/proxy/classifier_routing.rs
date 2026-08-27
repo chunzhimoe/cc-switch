@@ -260,6 +260,8 @@ mod tests {
         assert!(body.get("thinking").is_none());
     }
 
+    #[test]
+    fn enforces_route_and_preserves_unrelated_fields() {
         let mut body = classifier_body();
         let route = resolve_classifier_route(&body, &config()).expect("classifier route");
         enforce_classifier_route(&mut body, &route);
