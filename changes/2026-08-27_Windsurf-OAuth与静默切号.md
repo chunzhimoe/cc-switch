@@ -58,6 +58,7 @@ Phase A 已支持本机导入、Token/Auth1、邮箱密码登录与切号。仍�
 ## Git
 
 - 分支：`release/windsurf-v3.19.2`
-- 仅提交 Windsurf 相关文件；排除 `pnpm-workspace.yaml`、`cockpit-tools/`、`WindsurfAPI/`、`@plan/`、`.waylog/`
-- 推送目标：fork `https://github.com/chunzhimoe/cc-switch`
-- 新 release tag：本次未要求则不切
+- 功能提交：`c344cb82`（Windsurf OAuth、静默切号、前端与本归档同一提交）
+- 分支推送：已成功推送到公开 fork `https://github.com/chunzhimoe/cc-switch` 的 `release/windsurf-v3.19.2`
+- Release 标签：`v3.19.2-windsurf.4` 已成功推送，并触发 Release workflow
+- 排除：`pnpm-workspace.yaml`、`cockpit-tools/`、`WindsurfAPI/`、`@plan/`、`.waylog/`
