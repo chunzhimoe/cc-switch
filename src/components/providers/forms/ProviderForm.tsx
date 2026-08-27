@@ -362,6 +362,9 @@ function ProviderFormFull({
     useState<ClassifierRoutingConfig>(() =>
       normalizeClassifierRouting(initialData?.meta?.classifierRouting),
     );
+  const [skipAutoClassifier, setSkipAutoClassifier] = useState(
+    () => initialData?.meta?.skipAutoClassifier === true,
+  );
 
   const { category } = useProviderCategory({
     appId,
@@ -402,6 +405,7 @@ function ProviderFormFull({
     setClassifierRouting(
       normalizeClassifierRouting(initialData?.meta?.classifierRouting),
     );
+    setSkipAutoClassifier(initialData?.meta?.skipAutoClassifier === true);
     setCodexChatReasoning(initialData?.meta?.codexChatReasoning ?? {});
     setPromptCacheRouting(initialData?.meta?.promptCacheRouting ?? "auto");
     setCustomUserAgent(initialData?.meta?.customUserAgent ?? "");
@@ -1729,6 +1733,8 @@ function ProviderFormFull({
               stripPrefix: modelListProxy.stripPrefix || undefined,
             }
           : undefined,
+      skipAutoClassifier:
+        appId === "claude" && skipAutoClassifier ? true : undefined,
       classifierRouting:
         appId === "claude" && hasClassifierRoutingValue(classifierRouting)
           ? classifierRouting
@@ -2407,6 +2413,8 @@ function ProviderFormFull({
               onLocalProxyHeadersOverrideChange={setLocalProxyHeadersOverride}
               localProxyBodyOverride={localProxyBodyOverride}
               onLocalProxyBodyOverrideChange={setLocalProxyBodyOverride}
+              skipAutoClassifier={skipAutoClassifier}
+              onSkipAutoClassifierChange={setSkipAutoClassifier}
               classifierRouting={classifierRouting}
               onClassifierRoutingChange={setClassifierRouting}
             />

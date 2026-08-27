@@ -488,6 +488,13 @@ impl Default for ClassifierRoutingConfig {
 /// 供应商元数据
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ProviderMeta {
+    /// Provider-scoped high-risk override that configures Claude Code to bypass
+    /// Auto permission classification while keeping its command sandbox enabled.
+    #[serde(
+        rename = "skipAutoClassifier",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub skip_auto_classifier: Option<bool>,
     /// Provider-scoped Auto safety classifier model routing.
     #[serde(rename = "classifierRouting", skip_serializing_if = "Option::is_none")]
     pub classifier_routing: Option<ClassifierRoutingConfig>,
@@ -641,6 +648,11 @@ pub fn parse_custom_user_agent(
 }
 
 impl ProviderMeta {
+    /// Whether this provider projects Claude Code's high-risk classifier bypass.
+    pub fn skip_auto_classifier_enabled(&self) -> bool {
+        self.skip_auto_classifier.unwrap_or(false)
+    }
+
     /// Codex OAuth FAST mode 是否启用。默认关闭，因为 `service_tier="priority"`
     /// 会按更高速率消耗 ChatGPT 订阅配额，用户需显式开启以换取更低延迟。
     pub fn codex_fast_mode_enabled(&self) -> bool {
@@ -1099,6 +1111,31 @@ mod tests {
         let value = serde_json::to_value(&meta).expect("serialize ProviderMeta");
 
         assert!(value.get("pricingModelSource").is_none());
+    }
+
+    #[test]
+    fn provider_meta_roundtrips_skip_auto_classifier() {
+        let meta = ProviderMeta {
+            skip_auto_classifier: Some(true),
+            ..ProviderMeta::default()
+        };
+
+        let value = serde_json::to_value(&meta).expect("serialize ProviderMeta");
+        assert_eq!(
+            value.get("skipAutoClassifier").and_then(|item| item.as_bool()),
+            Some(true)
+        );
+        assert!(value.get("skip_auto_classifier").is_none());
+
+        let decoded: ProviderMeta =
+            serde_json::from_value(value).expect("deserialize ProviderMeta");
+        assert!(decoded.skip_auto_classifier_enabled());
+    }
+
+    #[test]
+    fn provider_meta_omits_skip_auto_classifier_when_none() {
+        let value = serde_json::to_value(ProviderMeta::default()).expect("serialize ProviderMeta");
+        assert!(value.get("skipAutoClassifier").is_none());
     }
 
     #[test]

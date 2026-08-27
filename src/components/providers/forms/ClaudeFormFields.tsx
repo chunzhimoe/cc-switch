@@ -51,6 +51,7 @@ import {
 } from "@/lib/api/model-fetch";
 import { CustomUserAgentField } from "./CustomUserAgentField";
 import { LocalProxyRequestOverridesField } from "./LocalProxyRequestOverridesField";
+import { AutoClassifierBypassField } from "./AutoClassifierBypassField";
 import {
   ClassifierRoutingField,
   DEFAULT_CLASSIFIER_ROUTING,
@@ -175,6 +176,10 @@ interface ClaudeFormFieldsProps {
   localProxyBodyOverride: string;
   onLocalProxyBodyOverrideChange: (value: string) => void;
 
+  // Provider-scoped high-risk Auto classifier bypass
+  skipAutoClassifier?: boolean;
+  onSkipAutoClassifierChange?: (value: boolean) => void;
+
   // Provider-scoped Auto classifier routing
   classifierRouting?: ClassifierRoutingConfig;
   onClassifierRoutingChange?: (value: ClassifierRoutingConfig) => void;
@@ -249,6 +254,8 @@ export function ClaudeFormFields({
   onLocalProxyHeadersOverrideChange,
   localProxyBodyOverride,
   onLocalProxyBodyOverrideChange,
+  skipAutoClassifier = false,
+  onSkipAutoClassifierChange = () => {},
   classifierRouting = DEFAULT_CLASSIFIER_ROUTING,
   onClassifierRoutingChange = () => {},
 }: ClaudeFormFieldsProps) {
@@ -270,6 +277,7 @@ export function ClaudeFormFields({
     apiKeyField !== "ANTHROPIC_AUTH_TOKEN" ||
     customUserAgent ||
     hasRequestOverrides ||
+    skipAutoClassifier ||
     hasClassifierRoutingValue(classifierRouting)
   );
   const [advancedExpanded, setAdvancedExpanded] = useState(
@@ -827,6 +835,16 @@ export function ClaudeFormFields({
         />
       )}
 
+      {!shouldShowModelSelector && (
+        <AutoClassifierBypassField
+          value={skipAutoClassifier}
+          onChange={onSkipAutoClassifierChange}
+          classifierRoutingConfigured={hasClassifierRoutingValue(
+            classifierRouting,
+          )}
+        />
+      )}
+
       {shouldShowModelSelector && (
         <Collapsible open={advancedExpanded} onOpenChange={setAdvancedExpanded}>
           <CollapsibleTrigger asChild>
@@ -1229,6 +1247,14 @@ export function ClaudeFormFields({
                 })}
               </p>
             </div>
+
+            <AutoClassifierBypassField
+              value={skipAutoClassifier}
+              onChange={onSkipAutoClassifierChange}
+              classifierRoutingConfigured={hasClassifierRoutingValue(
+                classifierRouting,
+              )}
+            />
 
             <ClassifierRoutingField
               value={classifierRouting}

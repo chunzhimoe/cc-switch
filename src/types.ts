@@ -196,6 +196,8 @@ export interface ClassifierRoutingConfig {
 
 // 供应商元数据（字段名与后端一致，保持 snake_case）
 export interface ProviderMeta {
+  // Provider-scoped high-risk Claude Code profile that bypasses Auto classification.
+  skipAutoClassifier?: boolean;
   // Provider-scoped Claude Code Auto safety classifier routing.
   classifierRouting?: ClassifierRoutingConfig;
   modelListProxy?: ModelListProxyConfig;
