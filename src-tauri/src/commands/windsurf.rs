@@ -10,6 +10,7 @@ use crate::windsurf::account::{
     self, new_account_from_auth1_refresh, new_token_account, WindsurfAccount,
     WindsurfAccountSummary,
 };
+use crate::windsurf::browser_oauth::{self, WindsurfOAuthStartResponse};
 use crate::windsurf::{devin_oauth, local_import, paths, process};
 
 #[derive(Debug, Serialize)]
@@ -105,6 +106,35 @@ pub async fn add_windsurf_account_with_password(
     let account = account::upsert_account(account).map_err(|error| error.to_string())?;
     save_provider_pointer(state.inner(), &account).map_err(|error| error.to_string())?;
     Ok(account.summary())
+}
+
+#[tauri::command]
+pub async fn windsurf_oauth_login_start() -> Result<WindsurfOAuthStartResponse, String> {
+    browser_oauth::start_login().await
+}
+
+#[tauri::command]
+pub async fn windsurf_oauth_login_complete(
+    state: State<'_, AppState>,
+    login_id: String,
+) -> Result<WindsurfAccountSummary, String> {
+    let account = browser_oauth::complete_login(&login_id).await?;
+    let account = account::upsert_account(account).map_err(|error| error.to_string())?;
+    save_provider_pointer(state.inner(), &account).map_err(|error| error.to_string())?;
+    Ok(account.summary())
+}
+
+#[tauri::command]
+pub fn windsurf_oauth_login_cancel(login_id: Option<String>) -> Result<(), String> {
+    browser_oauth::cancel_login(login_id.as_deref())
+}
+
+#[tauri::command]
+pub fn windsurf_oauth_submit_callback_url(
+    login_id: String,
+    callback_url: String,
+) -> Result<(), String> {
+    browser_oauth::submit_callback_url(&login_id, &callback_url)
 }
 
 #[tauri::command]

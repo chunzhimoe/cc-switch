@@ -28,6 +28,15 @@ export interface WindsurfStatus {
   rulesPath: string;
 }
 
+export interface WindsurfOAuthStartResponse {
+  loginId: string;
+  verificationUri: string;
+  verificationUriComplete?: string | null;
+  expiresIn: number;
+  intervalSeconds: number;
+  callbackUrl?: string | null;
+}
+
 export const windsurfApi = {
   async listAccounts(): Promise<WindsurfAccountSummary[]> {
     return await invoke("list_windsurf_accounts");
@@ -56,6 +65,30 @@ export const windsurfApi = {
       email,
       password,
       label: label ?? null,
+    });
+  },
+
+  async oauthLoginStart(): Promise<WindsurfOAuthStartResponse> {
+    return await invoke("windsurf_oauth_login_start");
+  },
+
+  async oauthLoginComplete(loginId: string): Promise<WindsurfAccountSummary> {
+    return await invoke("windsurf_oauth_login_complete", { loginId });
+  },
+
+  async oauthLoginCancel(loginId?: string | null): Promise<void> {
+    await invoke("windsurf_oauth_login_cancel", {
+      loginId: loginId ?? null,
+    });
+  },
+
+  async oauthSubmitCallbackUrl(
+    loginId: string,
+    callbackUrl: string,
+  ): Promise<void> {
+    await invoke("windsurf_oauth_submit_callback_url", {
+      loginId,
+      callbackUrl,
     });
   },
 

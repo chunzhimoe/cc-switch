@@ -42,12 +42,17 @@ pub fn close(timeout_secs: u64) -> Result<(), AppError> {
 
     #[cfg(target_os = "windows")]
     for pid in &pids {
-        let _ = Command::new("taskkill")
+        let mut command = Command::new("taskkill");
+        command
             .args(["/PID", &pid.to_string(), "/T"])
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
+            .stderr(Stdio::null());
+        {
+            use std::os::windows::process::CommandExt;
+            command.creation_flags(0x08000000);
+        }
+        let _ = command.status();
     }
     #[cfg(not(target_os = "windows"))]
     for pid in &pids {
@@ -62,12 +67,17 @@ pub fn close(timeout_secs: u64) -> Result<(), AppError> {
 
     #[cfg(target_os = "windows")]
     for pid in &pids {
-        let _ = Command::new("taskkill")
+        let mut command = Command::new("taskkill");
+        command
             .args(["/PID", &pid.to_string(), "/T", "/F"])
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
+            .stderr(Stdio::null());
+        {
+            use std::os::windows::process::CommandExt;
+            command.creation_flags(0x08000000);
+        }
+        let _ = command.status();
     }
     #[cfg(not(target_os = "windows"))]
     for pid in &pids {

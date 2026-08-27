@@ -2271,7 +2271,7 @@
   },
   "windsurf": {
     "title": "Windsurf アカウント",
-    "empty": "Windsurf アカウントはまだありません。ローカルセッションのインポート、メール／パスワードログイン、またはトークン追加ができます。",
+    "empty": "Windsurf アカウントはまだありません。ローカルセッションのインポート、メール／パスワードログイン、OAuth 認可、またはトークン追加ができます。",
     "current": "現在",
     "status": {
       "running": "実行中",
@@ -2282,6 +2282,7 @@
       "detect": "再検出",
       "importLocal": "ローカルアカウントをインポート",
       "addPassword": "メール／パスワードでログイン",
+      "addOauth": "OAuth 認可",
       "addToken": "トークンを追加",
       "switch": "切り替えて再起動"
     },
@@ -2305,6 +2306,20 @@
       "label": "アカウント名（任意）",
       "email": "メール",
       "password": "パスワード"
+    },
+    "oauth": {
+      "title": "OAuth で Windsurf にログイン",
+      "description": "ブラウザで Windsurf 認可を完了してください。コールバックが自動で戻らない場合は、完全なコールバック URL を貼り付けてください。",
+      "preparing": "認可情報を準備しています…",
+      "linkLabel": "認可リンク",
+      "callbackHint": "ローカルコールバック URL: {{url}}",
+      "openBrowser": "ブラウザで開く",
+      "manualCallbackLabel": "コールバック URL を貼り付け",
+      "manualCallbackPlaceholder": "http://127.0.0.1:port/windsurf-auth-callback?access_token=...&state=...",
+      "submitCallback": "送信",
+      "waiting": "認可完了を待っています…",
+      "retry": "再認可",
+      "callbackAccepted": "コールバックを受け取りました。ログインを完了しています…"
     },
     "switchConfirm": {
       "title": "Windsurf アカウントを切り替え",

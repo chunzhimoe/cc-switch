@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
   CheckCircle2,
   Download,
+  Globe,
   Loader2,
   Plus,
   RefreshCw,
@@ -28,7 +29,11 @@ import {
   useWindsurfActions,
   useWindsurfStatus,
 } from "@/hooks/useWindsurf";
-import type { WindsurfAccountSummary } from "@/lib/api/windsurf";
+import { settingsApi } from "@/lib/api";
+import type {
+  WindsurfAccountSummary,
+  WindsurfOAuthStartResponse,
+} from "@/lib/api/windsurf";
 
 export default function WindsurfAccountsPanel() {
   const { t } = useTranslation();
@@ -37,14 +42,140 @@ export default function WindsurfAccountsPanel() {
   const actions = useWindsurfActions();
   const [tokenDialogOpen, setTokenDialogOpen] = useState(false);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [oauthDialogOpen, setOauthDialogOpen] = useState(false);
   const [token, setToken] = useState("");
   const [label, setLabel] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [oauthSession, setOauthSession] =
+    useState<WindsurfOAuthStartResponse | null>(null);
+  const [oauthWaiting, setOauthWaiting] = useState(false);
+  const [oauthError, setOauthError] = useState<string | null>(null);
+  const [manualCallbackUrl, setManualCallbackUrl] = useState("");
   const [pendingSwitch, setPendingSwitch] =
     useState<WindsurfAccountSummary | null>(null);
   const [pendingDelete, setPendingDelete] =
     useState<WindsurfAccountSummary | null>(null);
+  const oauthLoginIdRef = useRef<string | null>(null);
+  const oauthFlowRef = useRef(0);
+  const oauthCancelledRef = useRef(false);
+
+  const resetOauthState = () => {
+    setOauthSession(null);
+    setOauthWaiting(false);
+    setOauthError(null);
+    setManualCallbackUrl("");
+    oauthLoginIdRef.current = null;
+  };
+
+  const cancelOauthSession = async () => {
+    oauthCancelledRef.current = true;
+    oauthFlowRef.current += 1;
+    const loginId = oauthLoginIdRef.current;
+    oauthLoginIdRef.current = null;
+    if (loginId) {
+      try {
+        await actions.oauthLoginCancel.mutateAsync(loginId);
+      } catch {
+        // Best-effort cancel; UI already closing.
+      }
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      oauthCancelledRef.current = true;
+      oauthFlowRef.current += 1;
+      if (oauthLoginIdRef.current) {
+        void actions.oauthLoginCancel.mutateAsync(oauthLoginIdRef.current);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const startOauthFlow = async () => {
+    const flowId = oauthFlowRef.current + 1;
+    oauthFlowRef.current = flowId;
+    oauthCancelledRef.current = false;
+    setOauthError(null);
+    setOauthWaiting(false);
+    setManualCallbackUrl("");
+    try {
+      const session = await actions.oauthLoginStart.mutateAsync();
+      if (oauthFlowRef.current !== flowId || oauthCancelledRef.current) {
+        await actions.oauthLoginCancel.mutateAsync(session.loginId);
+        return;
+      }
+      oauthLoginIdRef.current = session.loginId;
+      setOauthSession(session);
+      try {
+        await settingsApi.openExternal(session.verificationUri);
+      } catch (error) {
+        console.debug("[WindsurfOAuth] Failed to open browser:", error);
+      }
+      if (oauthFlowRef.current !== flowId || oauthCancelledRef.current) {
+        return;
+      }
+      setOauthWaiting(true);
+      try {
+        await actions.oauthLoginComplete.mutateAsync(session.loginId);
+        if (oauthFlowRef.current !== flowId || oauthCancelledRef.current) {
+          return;
+        }
+        resetOauthState();
+        setOauthDialogOpen(false);
+        toast.success(
+          t("windsurf.notifications.added", {
+            defaultValue: "Windsurf 账号已添加",
+          }),
+        );
+      } catch (error) {
+        if (oauthFlowRef.current !== flowId || oauthCancelledRef.current) {
+          return;
+        }
+        setOauthWaiting(false);
+        setOauthError(String(error));
+      }
+    } catch (error) {
+      if (oauthFlowRef.current !== flowId || oauthCancelledRef.current) {
+        return;
+      }
+      setOauthError(String(error));
+    }
+  };
+
+  const handleOpenOauthDialog = () => {
+    setOauthDialogOpen(true);
+    void startOauthFlow();
+  };
+
+  const handleCloseOauthDialog = async (open: boolean) => {
+    if (open) {
+      setOauthDialogOpen(true);
+      return;
+    }
+    await cancelOauthSession();
+    resetOauthState();
+    setOauthDialogOpen(false);
+  };
+
+  const handleSubmitCallbackUrl = async () => {
+    if (!oauthSession || !manualCallbackUrl.trim()) return;
+    setOauthError(null);
+    try {
+      await actions.oauthSubmitCallbackUrl.mutateAsync({
+        loginId: oauthSession.loginId,
+        callbackUrl: manualCallbackUrl.trim(),
+      });
+      toast.success(
+        t("windsurf.oauth.callbackAccepted", {
+          defaultValue: "已接收回调链接，正在完成登录…",
+        }),
+      );
+    } catch (error) {
+      setOauthError(String(error));
+    }
+  };
 
   const handleImportLocal = async () => {
     try {
@@ -175,7 +306,7 @@ export default function WindsurfAccountsPanel() {
               </p>
             )}
           </div>
-          <div className="flex shrink-0 gap-2">
+          <div className="flex shrink-0 flex-wrap justify-end gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -227,6 +358,12 @@ export default function WindsurfAccountsPanel() {
                 defaultValue: "邮箱密码登录",
               })}
             </Button>
+            <Button variant="outline" size="sm" onClick={handleOpenOauthDialog}>
+              <Globe className="mr-2 h-4 w-4" />
+              {t("windsurf.actions.addOauth", {
+                defaultValue: "OAuth 授权",
+              })}
+            </Button>
             <Button
               size="sm"
               onClick={() => {
@@ -250,7 +387,7 @@ export default function WindsurfAccountsPanel() {
           <div className="rounded-xl border border-dashed border-border-default p-10 text-center text-sm text-muted-foreground">
             {t("windsurf.empty", {
               defaultValue:
-                "还没有 Windsurf 账号。可导入本机登录态或添加 Token。",
+                "还没有 Windsurf 账号。可导入本机登录态、邮箱密码登录、OAuth 授权或添加 Token。",
             })}
           </div>
         ) : (
@@ -418,6 +555,154 @@ export default function WindsurfAccountsPanel() {
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
               {t("common.add")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={oauthDialogOpen} onOpenChange={handleCloseOauthDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {t("windsurf.oauth.title", {
+                defaultValue: "OAuth 授权登录 Windsurf",
+              })}
+            </DialogTitle>
+            <DialogDescription>
+              {t("windsurf.oauth.description", {
+                defaultValue:
+                  "在浏览器完成 Windsurf 授权。若回调未能自动返回，可粘贴完整回调 URL。",
+              })}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 px-6 py-5">
+            {!oauthSession && !oauthError ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {t("windsurf.oauth.preparing", {
+                  defaultValue: "正在准备授权信息…",
+                })}
+              </div>
+            ) : (
+              <>
+                {oauthSession && (
+                  <>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">
+                        {t("windsurf.oauth.linkLabel", {
+                          defaultValue: "授权链接",
+                        })}
+                      </label>
+                      <Input
+                        value={oauthSession.verificationUri}
+                        readOnly
+                        className="font-mono text-xs"
+                      />
+                    </div>
+                    {oauthSession.callbackUrl && (
+                      <p className="text-xs text-muted-foreground">
+                        {t("windsurf.oauth.callbackHint", {
+                          defaultValue: "本地回调地址：{{url}}",
+                          url: oauthSession.callbackUrl,
+                        })}
+                      </p>
+                    )}
+                    <Button
+                      className="w-full"
+                      onClick={() => {
+                        void settingsApi
+                          .openExternal(oauthSession.verificationUri)
+                          .catch((error) => {
+                            toast.error(String(error));
+                          });
+                      }}
+                    >
+                      <Globe className="mr-2 h-4 w-4" />
+                      {t("windsurf.oauth.openBrowser", {
+                        defaultValue: "在浏览器中打开",
+                      })}
+                    </Button>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">
+                        {t("windsurf.oauth.manualCallbackLabel", {
+                          defaultValue: "手动粘贴回调 URL",
+                        })}
+                      </label>
+                      <div className="flex gap-2">
+                        <Input
+                          value={manualCallbackUrl}
+                          onChange={(event) =>
+                            setManualCallbackUrl(event.target.value)
+                          }
+                          placeholder={t(
+                            "windsurf.oauth.manualCallbackPlaceholder",
+                            {
+                              defaultValue:
+                                "http://127.0.0.1:端口/windsurf-auth-callback?access_token=...&state=...",
+                            },
+                          )}
+                          className="font-mono text-xs"
+                        />
+                        <Button
+                          variant="outline"
+                          disabled={
+                            !manualCallbackUrl.trim() ||
+                            actions.oauthSubmitCallbackUrl.isPending
+                          }
+                          onClick={() => void handleSubmitCallbackUrl()}
+                        >
+                          {actions.oauthSubmitCallbackUrl.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            t("windsurf.oauth.submitCallback", {
+                              defaultValue: "提交",
+                            })
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </>
+                )}
+                {oauthWaiting && !oauthError && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {t("windsurf.oauth.waiting", {
+                      defaultValue: "等待授权完成…",
+                    })}
+                  </div>
+                )}
+                {oauthError && (
+                  <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                    {oauthError}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => void handleCloseOauthDialog(false)}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              variant="secondary"
+              disabled={actions.oauthLoginStart.isPending}
+              onClick={() => {
+                void (async () => {
+                  await cancelOauthSession();
+                  resetOauthState();
+                  await startOauthFlow();
+                })();
+              }}
+            >
+              {actions.oauthLoginStart.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              {t("windsurf.oauth.retry", {
+                defaultValue: "重新授权",
+              })}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -50,6 +50,26 @@ export function useWindsurfActions() {
     }) => windsurfApi.addByPassword(email, password, label),
     onSuccess: invalidate,
   });
+  const oauthLoginStart = useMutation({
+    mutationFn: () => windsurfApi.oauthLoginStart(),
+  });
+  const oauthLoginComplete = useMutation({
+    mutationFn: (loginId: string) => windsurfApi.oauthLoginComplete(loginId),
+    onSuccess: invalidate,
+  });
+  const oauthLoginCancel = useMutation({
+    mutationFn: (loginId?: string | null) =>
+      windsurfApi.oauthLoginCancel(loginId),
+  });
+  const oauthSubmitCallbackUrl = useMutation({
+    mutationFn: ({
+      loginId,
+      callbackUrl,
+    }: {
+      loginId: string;
+      callbackUrl: string;
+    }) => windsurfApi.oauthSubmitCallbackUrl(loginId, callbackUrl),
+  });
   const deleteAccount = useMutation({
     mutationFn: (accountId: string) => windsurfApi.deleteAccount(accountId),
     onSuccess: invalidate,
@@ -67,6 +87,10 @@ export function useWindsurfActions() {
     importLocal,
     addByToken,
     addByPassword,
+    oauthLoginStart,
+    oauthLoginComplete,
+    oauthLoginCancel,
+    oauthSubmitCallbackUrl,
     deleteAccount,
     switchAccount,
     detectAppPath,

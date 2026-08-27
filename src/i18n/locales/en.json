@@ -2271,7 +2271,7 @@
   },
   "windsurf": {
     "title": "Windsurf accounts",
-    "empty": "No Windsurf accounts yet. Import the local session, sign in with email/password, or add a token.",
+    "empty": "No Windsurf accounts yet. Import the local session, sign in with email/password, use OAuth, or add a token.",
     "current": "Current",
     "status": {
       "running": "Running",
@@ -2282,6 +2282,7 @@
       "detect": "Detect again",
       "importLocal": "Import local account",
       "addPassword": "Email/password login",
+      "addOauth": "OAuth sign-in",
       "addToken": "Add token",
       "switch": "Switch and restart"
     },
@@ -2305,6 +2306,20 @@
       "label": "Account label (optional)",
       "email": "Email",
       "password": "Password"
+    },
+    "oauth": {
+      "title": "Sign in to Windsurf with OAuth",
+      "description": "Finish Windsurf authorization in the browser. If the callback does not return automatically, paste the full callback URL.",
+      "preparing": "Preparing authorization…",
+      "linkLabel": "Authorization link",
+      "callbackHint": "Local callback URL: {{url}}",
+      "openBrowser": "Open in browser",
+      "manualCallbackLabel": "Paste callback URL",
+      "manualCallbackPlaceholder": "http://127.0.0.1:port/windsurf-auth-callback?access_token=...&state=...",
+      "submitCallback": "Submit",
+      "waiting": "Waiting for authorization…",
+      "retry": "Retry authorization",
+      "callbackAccepted": "Callback accepted, finishing sign-in…"
     },
     "switchConfirm": {
       "title": "Switch Windsurf account",

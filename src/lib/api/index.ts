@@ -16,6 +16,7 @@ export { workspaceApi } from "./workspace";
 export { windsurfApi } from "./windsurf";
 export type {
   WindsurfAccountSummary,
+  WindsurfOAuthStartResponse,
   WindsurfStatus,
   WindsurfSwitchResult,
 } from "./windsurf";

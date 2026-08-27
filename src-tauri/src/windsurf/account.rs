@@ -261,6 +261,100 @@ pub fn new_token_account(
     Ok(account)
 }
 
+pub fn new_account_from_oauth(
+    api_key: String,
+    api_server_url: String,
+    name: Option<String>,
+    email: Option<String>,
+    user_status: Option<Value>,
+) -> WindsurfAccount {
+    let now = Utc::now().timestamp();
+    let email = email
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string);
+    let display = name
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+        .or_else(|| email.clone())
+        .unwrap_or_else(|| "Windsurf Account".to_string());
+    let login = email
+        .as_deref()
+        .and_then(|value| value.split('@').next())
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+        .unwrap_or_else(|| display.clone());
+
+    let mut auth_status = serde_json::json!({
+        "apiKey": api_key,
+        "name": display,
+        "authMethod": "firebase",
+        "apiServerUrl": api_server_url,
+        "status": "SignedIn",
+    });
+    if let Some(object) = auth_status.as_object_mut() {
+        if let Some(email) = &email {
+            object.insert("email".to_string(), Value::String(email.clone()));
+            object.insert(
+                "user".to_string(),
+                serde_json::json!({
+                    "name": display,
+                    "email": email,
+                }),
+            );
+        }
+        if let Some(status) = &user_status {
+            object.insert("userStatus".to_string(), status.clone());
+            if let Some(plan_status) = status.get("planStatus") {
+                object.insert("planStatus".to_string(), plan_status.clone());
+            }
+        }
+    }
+
+    let mut account = WindsurfAccount {
+        id: String::new(),
+        github_login: login,
+        github_id: 0,
+        github_name: Some(display),
+        github_email: email,
+        tags: None,
+        github_access_token: String::new(),
+        copilot_token: String::new(),
+        windsurf_api_key: Some(api_key.clone()),
+        windsurf_api_server_url: Some(api_server_url),
+        windsurf_auth_token: Some(api_key),
+        windsurf_user_status: user_status
+            .as_ref()
+            .and_then(|value| value.get("userStatus").cloned())
+            .or_else(|| user_status.clone()),
+        windsurf_plan_status: user_status
+            .as_ref()
+            .and_then(|value| value.get("planStatus").cloned())
+            .or_else(|| {
+                user_status
+                    .as_ref()
+                    .and_then(|value| value.pointer("/userStatus/planStatus").cloned())
+            }),
+        windsurf_auth_status_raw: Some(auth_status),
+        quota_query_last_error: None,
+        quota_query_last_error_at: None,
+        usage_updated_at: Some(now),
+        windsurf_token_type: Some("firebase".to_string()),
+        devin_auth1_token: None,
+        devin_account_id: None,
+        devin_org_id: None,
+        devin_session_token: None,
+        devin_user_status_proto_b64: None,
+        created_at: now,
+        last_used: now,
+    };
+    account.id = stable_account_id(&account);
+    account
+}
+
 pub fn new_account_from_auth1_refresh(
     email: Option<String>,
     label: Option<String>,

@@ -2271,7 +2271,7 @@
   },
   "windsurf": {
     "title": "Windsurf 账号",
-    "empty": "还没有 Windsurf 账号。可导入本机登录态、邮箱密码登录或添加 Token。",
+    "empty": "还没有 Windsurf 账号。可导入本机登录态、邮箱密码登录、OAuth 授权或添加 Token。",
     "current": "当前",
     "status": {
       "running": "运行中",
@@ -2282,6 +2282,7 @@
       "detect": "重新检测",
       "importLocal": "导入本机账号",
       "addPassword": "邮箱密码登录",
+      "addOauth": "OAuth 授权",
       "addToken": "添加 Token",
       "switch": "切换并重启"
     },
@@ -2305,6 +2306,20 @@
       "label": "账号名称（可选）",
       "email": "邮箱",
       "password": "密码"
+    },
+    "oauth": {
+      "title": "OAuth 授权登录 Windsurf",
+      "description": "在浏览器完成 Windsurf 授权。若回调未能自动返回，可粘贴完整回调 URL。",
+      "preparing": "正在准备授权信息…",
+      "linkLabel": "授权链接",
+      "callbackHint": "本地回调地址：{{url}}",
+      "openBrowser": "在浏览器中打开",
+      "manualCallbackLabel": "手动粘贴回调 URL",
+      "manualCallbackPlaceholder": "http://127.0.0.1:端口/windsurf-auth-callback?access_token=...&state=...",
+      "submitCallback": "提交",
+      "waiting": "等待授权完成…",
+      "retry": "重新授权",
+      "callbackAccepted": "已接收回调链接，正在完成登录…"
     },
     "switchConfirm": {
       "title": "切换 Windsurf 账号",

@@ -2272,7 +2272,7 @@
   },
   "windsurf": {
     "title": "Windsurf 帳號",
-    "empty": "尚無 Windsurf 帳號。可匯入本機登入狀態、使用信箱密碼登入或新增 Token。",
+    "empty": "尚無 Windsurf 帳號。可匯入本機登入狀態、使用信箱密碼登入、OAuth 授權或新增 Token。",
     "current": "目前",
     "status": {
       "running": "執行中",
@@ -2283,6 +2283,7 @@
       "detect": "重新偵測",
       "importLocal": "匯入本機帳號",
       "addPassword": "信箱密碼登入",
+      "addOauth": "OAuth 授權",
       "addToken": "新增 Token",
       "switch": "切換並重新啟動"
     },
@@ -2306,6 +2307,20 @@
       "label": "帳號名稱（選填）",
       "email": "信箱",
       "password": "密碼"
+    },
+    "oauth": {
+      "title": "OAuth 授權登入 Windsurf",
+      "description": "在瀏覽器完成 Windsurf 授權。若回呼未能自動返回，可貼上完整回呼 URL。",
+      "preparing": "正在準備授權資訊…",
+      "linkLabel": "授權連結",
+      "callbackHint": "本機回呼位址：{{url}}",
+      "openBrowser": "在瀏覽器中開啟",
+      "manualCallbackLabel": "手動貼上回呼 URL",
+      "manualCallbackPlaceholder": "http://127.0.0.1:埠號/windsurf-auth-callback?access_token=...&state=...",
+      "submitCallback": "提交",
+      "waiting": "等待授權完成…",
+      "retry": "重新授權",
+      "callbackAccepted": "已接收回呼連結，正在完成登入…"
     },
     "switchConfirm": {
       "title": "切換 Windsurf 帳號",
