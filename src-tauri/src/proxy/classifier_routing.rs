@@ -153,8 +153,9 @@ pub fn diagnose_classifier_route(
     })
 }
 
+#[cfg(test)]
 /// Resolve a route from the original, pre-transform Anthropic request body.
-pub fn resolve_classifier_route(
+fn resolve_classifier_route(
     body: &Value,
     config: &ClassifierRoutingConfig,
 ) -> Option<ClassifierRoute> {
