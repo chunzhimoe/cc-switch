@@ -187,9 +187,7 @@ fn set_claude_live_object_field(
         );
         return;
     };
-    let section_value = root
-        .entry(section.to_string())
-        .or_insert_with(|| json!({}));
+    let section_value = root.entry(section.to_string()).or_insert_with(|| json!({}));
     let Some(section_object) = section_value.as_object_mut() else {
         log::warn!(
             "Cannot project Claude Auto classifier bypass for '{}': {section} is not an object",
@@ -215,13 +213,7 @@ fn apply_claude_auto_classifier_bypass(settings: &mut Value, provider: &Provider
         "defaultMode",
         Value::String(CLAUDE_CODE_BYPASS_PERMISSION_MODE.to_string()),
     );
-    set_claude_live_object_field(
-        settings,
-        provider,
-        "sandbox",
-        "enabled",
-        Value::Bool(true),
-    );
+    set_claude_live_object_field(settings, provider, "sandbox", "enabled", Value::Bool(true));
 }
 
 /// Project the provider-scoped classifier selection into Claude Code's own
@@ -2438,13 +2430,19 @@ mod tests {
             effective["permissions"]["defaultMode"],
             json!(CLAUDE_CODE_BYPASS_PERMISSION_MODE)
         );
-        assert_eq!(effective["permissions"]["allow"][0], json!("Bash(git status)"));
+        assert_eq!(
+            effective["permissions"]["allow"][0],
+            json!("Bash(git status)")
+        );
         assert_eq!(effective["sandbox"]["enabled"], json!(true));
         assert_eq!(effective["sandbox"]["excludedCommands"][0], json!("git"));
         assert!(effective["env"]
             .get(CLAUDE_CODE_AUTO_MODE_MODEL_ENV)
             .is_none());
-        assert_eq!(provider.settings_config["permissions"]["defaultMode"], json!("auto"));
+        assert_eq!(
+            provider.settings_config["permissions"]["defaultMode"],
+            json!("auto")
+        );
         assert_eq!(provider.settings_config["sandbox"]["enabled"], json!(false));
     }
 
@@ -2530,8 +2528,9 @@ mod tests {
             ..Default::default()
         });
 
-        let mut live = build_effective_settings_with_common_config(&db, &AppType::Claude, &provider)
-            .expect("build effective settings");
+        let mut live =
+            build_effective_settings_with_common_config(&db, &AppType::Claude, &provider)
+                .expect("build effective settings");
         live["permissions"]["defaultMode"] = json!("plan");
         live["sandbox"]["enabled"] = json!(false);
 

@@ -490,10 +490,7 @@ impl Default for ClassifierRoutingConfig {
 pub struct ProviderMeta {
     /// Provider-scoped high-risk override that configures Claude Code to bypass
     /// Auto permission classification while keeping its command sandbox enabled.
-    #[serde(
-        rename = "skipAutoClassifier",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "skipAutoClassifier", skip_serializing_if = "Option::is_none")]
     pub skip_auto_classifier: Option<bool>,
     /// Provider-scoped Auto safety classifier model routing.
     #[serde(rename = "classifierRouting", skip_serializing_if = "Option::is_none")]
@@ -1122,7 +1119,9 @@ mod tests {
 
         let value = serde_json::to_value(&meta).expect("serialize ProviderMeta");
         assert_eq!(
-            value.get("skipAutoClassifier").and_then(|item| item.as_bool()),
+            value
+                .get("skipAutoClassifier")
+                .and_then(|item| item.as_bool()),
             Some(true)
         );
         assert!(value.get("skip_auto_classifier").is_none());
