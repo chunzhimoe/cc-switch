@@ -308,7 +308,9 @@ mod tests {
         assert_eq!(single.content_hash.as_deref(), Some("hash"));
         assert_eq!(single.updated_at, 456);
 
-        let all = database.get_all_installed_skills().expect("load all skills");
+        let all = database
+            .get_all_installed_skills()
+            .expect("load all skills");
         let from_all = all.get(&skill.id).expect("skill in collection");
         assert!(from_all.apps.windsurf);
         assert_eq!(from_all.installed_at, 123);

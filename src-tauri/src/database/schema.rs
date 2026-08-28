@@ -3280,11 +3280,7 @@ mod tests {
         Database::apply_schema_migrations_on_conn(&conn)?;
 
         assert_eq!(Database::get_user_version(&conn)?, SCHEMA_VERSION);
-        assert!(Database::has_column(
-            &conn,
-            "skills",
-            "enabled_windsurf"
-        )?);
+        assert!(Database::has_column(&conn, "skills", "enabled_windsurf")?);
         let values: (i64, i64) = conn.query_row(
             "SELECT enabled_hermes, enabled_windsurf FROM skills WHERE id = 'skill-1'",
             [],

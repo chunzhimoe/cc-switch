@@ -424,8 +424,8 @@ fn encrypt_macos_secret(plaintext: &[u8], password: &[u8]) -> Result<Vec<u8>, Ap
         &mut key[..],
     );
 
-    let cipher = Aes128CbcEncryptor::new_from_slices(&key[..], &MACOS_SAFE_STORAGE_IV)
-        .map_err(|error| {
+    let cipher =
+        Aes128CbcEncryptor::new_from_slices(&key[..], &MACOS_SAFE_STORAGE_IV).map_err(|error| {
             AppError::Config(format!("Failed to initialize AES-CBC encryptor: {error}"))
         })?;
     let message_len = plaintext.len();
@@ -507,8 +507,8 @@ mod macos_tests {
         assert_eq!(
             encrypted,
             vec![
-                0x76, 0x31, 0x30, 0x95, 0x88, 0x15, 0xf4, 0x8a, 0x74, 0x22, 0x7a, 0x2a,
-                0x31, 0x53, 0x50, 0x50, 0xc6, 0x88, 0x42,
+                0x76, 0x31, 0x30, 0x95, 0x88, 0x15, 0xf4, 0x8a, 0x74, 0x22, 0x7a, 0x2a, 0x31, 0x53,
+                0x50, 0x50, 0xc6, 0x88, 0x42,
             ]
         );
     }
