@@ -1036,14 +1036,6 @@ pub fn get_windsurf_skills_dir() -> Option<PathBuf> {
         .map(|p| resolve_override_path(p))
 }
 
-pub fn set_windsurf_skills_dir(path: Option<&str>) -> Result<(), AppError> {
-    let path = path
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToString::to_string);
-    mutate_settings(|settings| settings.windsurf_skills_dir = path.clone())
-}
-
 pub fn get_windsurf_mcp_dir() -> Option<PathBuf> {
     let settings = settings_store().read().ok()?;
     settings
@@ -1052,28 +1044,12 @@ pub fn get_windsurf_mcp_dir() -> Option<PathBuf> {
         .map(|p| resolve_override_path(p))
 }
 
-pub fn set_windsurf_mcp_dir(path: Option<&str>) -> Result<(), AppError> {
-    let path = path
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToString::to_string);
-    mutate_settings(|settings| settings.windsurf_mcp_dir = path.clone())
-}
-
 pub fn get_windsurf_rules_dir() -> Option<PathBuf> {
     let settings = settings_store().read().ok()?;
     settings
         .windsurf_rules_dir
         .as_ref()
         .map(|p| resolve_override_path(p))
-}
-
-pub fn set_windsurf_rules_dir(path: Option<&str>) -> Result<(), AppError> {
-    let path = path
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToString::to_string);
-    mutate_settings(|settings| settings.windsurf_rules_dir = path.clone())
 }
 
 pub fn preserve_codex_official_auth_on_switch() -> bool {
