@@ -35,10 +35,11 @@ export const SKILLS_APP_IDS: AppId[] = [
   "grokbuild",
   "opencode",
   "hermes",
+  "windsurf",
 ];
 
 /** App IDs shown in MCP panels */
-export const MCP_APP_IDS: AppId[] = [...SKILLS_APP_IDS, "windsurf"];
+export const MCP_APP_IDS: AppId[] = [...SKILLS_APP_IDS];
 
 export const APP_ICON_MAP: Record<AppId, AppConfig> = {
   claude: {

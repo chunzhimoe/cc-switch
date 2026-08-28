@@ -1,6 +1,6 @@
 [package]
 name = "cc-switch"
-version = "3.19.4"
+version = "3.19.5"
 description = "All-in-One Assistant for Claude Code, Codex & Gemini CLI"
 authors = ["Jason Young"]
 license = "MIT"
@@ -109,6 +109,11 @@ rquickjs = { version = "0.8", features = ["bindgen"] }
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.5"
 objc2-app-kit = { version = "0.2", features = ["NSColor"] }
+aes = "0.8"
+cbc = "0.1"
+pbkdf2 = "0.12"
+sha1 = "0.10"
+zeroize = "1"
 
 # Optimize release binary size to help reduce AppImage footprint
 [profile.release]

@@ -772,6 +772,10 @@
     "openclawConfigDirDescription": "覆盖 OpenClaw 配置目录 (openclaw.json)。",
     "hermesConfigDir": "Hermes 配置目录",
     "hermesConfigDirDescription": "覆盖 Hermes 配置目录 (config.yaml)。",
+    "windsurfUserDataDir": "Windsurf 用户数据目录",
+    "windsurfSkillsDir": "Windsurf Skills 目录",
+    "windsurfMcpDir": "Windsurf MCP 目录",
+    "windsurfRulesDir": "Windsurf Rules 目录",
     "browsePlaceholderClaude": "例如：/home/<你的用户名>/.claude",
     "browsePlaceholderCodex": "例如：/home/<你的用户名>/.codex",
     "browsePlaceholderGemini": "例如：/home/<你的用户名>/.gemini",
@@ -2288,6 +2292,10 @@
       "stopped": "未运行",
       "pathMissing": "尚未检测到 Windsurf/Devin 可执行文件"
     },
+    "settings": {
+      "appPath": "安装目录 / 可执行文件",
+      "userDataDir": "用户数据目录"
+    },
     "actions": {
       "detect": "重新检测",
       "importLocal": "导入本机账号",
@@ -2302,7 +2310,8 @@
       "deleted": "Windsurf 账号已删除",
       "switched": "已切换并重启 Windsurf",
       "switchedWithWarning": "账号已切换，但 Windsurf 未能自动启动：{{warning}}",
-      "pathDetected": "已检测到 Windsurf：{{path}}"
+      "pathDetected": "已检测到 Windsurf：{{path}}",
+      "locationSaved": "Windsurf 路径已保存"
     },
     "addToken": {
       "title": "添加 Windsurf Token",

@@ -28,6 +28,10 @@ const CORE_FIELDS: &[&str] = &[
 ];
 
 pub fn get_windsurf_mcp_config_path() -> Result<PathBuf, AppError> {
+    if let Some(dir) = crate::settings::get_windsurf_mcp_dir() {
+        return Ok(dir.join("mcp_config.json"));
+    }
+
     dirs::config_dir()
         .map(|dir| dir.join("devin").join("mcp_config.json"))
         .ok_or_else(|| {

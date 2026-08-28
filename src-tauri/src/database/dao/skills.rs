@@ -23,7 +23,7 @@ impl Database {
             .prepare(
                 "SELECT id, name, description, directory, repo_owner, repo_name, repo_branch,
                         readme_url, enabled_claude, enabled_codex, enabled_gemini, enabled_grokbuild,
-                        enabled_opencode, enabled_hermes, installed_at, content_hash, updated_at
+                        enabled_opencode, enabled_hermes, enabled_windsurf, installed_at, content_hash, updated_at
                  FROM skills ORDER BY name ASC",
             )
             .map_err(|e| AppError::Database(e.to_string()))?;
@@ -46,10 +46,11 @@ impl Database {
                         grokbuild: row.get(11)?,
                         opencode: row.get(12)?,
                         hermes: row.get(13)?,
+                        windsurf: row.get(14)?,
                     },
-                    installed_at: row.get(14)?,
-                    content_hash: row.get(15)?,
-                    updated_at: row.get::<_, i64>(16).unwrap_or(0),
+                    installed_at: row.get(15)?,
+                    content_hash: row.get(16)?,
+                    updated_at: row.get::<_, i64>(17).unwrap_or(0),
                 })
             })
             .map_err(|e| AppError::Database(e.to_string()))?;
@@ -69,7 +70,7 @@ impl Database {
             .prepare(
                 "SELECT id, name, description, directory, repo_owner, repo_name, repo_branch,
                         readme_url, enabled_claude, enabled_codex, enabled_gemini, enabled_grokbuild,
-                        enabled_opencode, enabled_hermes, installed_at, content_hash, updated_at
+                        enabled_opencode, enabled_hermes, enabled_windsurf, installed_at, content_hash, updated_at
                  FROM skills WHERE id = ?1",
             )
             .map_err(|e| AppError::Database(e.to_string()))?;
@@ -91,10 +92,11 @@ impl Database {
                     grokbuild: row.get(11)?,
                     opencode: row.get(12)?,
                     hermes: row.get(13)?,
+                    windsurf: row.get(14)?,
                 },
-                installed_at: row.get(14)?,
-                content_hash: row.get(15)?,
-                updated_at: row.get::<_, i64>(16).unwrap_or(0),
+                installed_at: row.get(15)?,
+                content_hash: row.get(16)?,
+                updated_at: row.get::<_, i64>(17).unwrap_or(0),
             })
         });
 
@@ -111,9 +113,9 @@ impl Database {
         conn.execute(
             "INSERT OR REPLACE INTO skills
              (id, name, description, directory, repo_owner, repo_name, repo_branch,
-              readme_url, enabled_claude, enabled_codex, enabled_gemini, enabled_grokbuild, enabled_opencode, enabled_hermes,
+              readme_url, enabled_claude, enabled_codex, enabled_gemini, enabled_grokbuild, enabled_opencode, enabled_hermes, enabled_windsurf,
               installed_at, content_hash, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
             params![
                 skill.id,
                 skill.name,
@@ -129,6 +131,7 @@ impl Database {
                 skill.apps.grokbuild,
                 skill.apps.opencode,
                 skill.apps.hermes,
+                skill.apps.windsurf,
                 skill.installed_at,
                 skill.content_hash,
                 skill.updated_at,
@@ -160,8 +163,8 @@ impl Database {
         let conn = lock_conn!(self.conn);
         let affected = conn
             .execute(
-                "UPDATE skills SET enabled_claude = ?1, enabled_codex = ?2, enabled_gemini = ?3, enabled_grokbuild = ?4, enabled_opencode = ?5, enabled_hermes = ?6 WHERE id = ?7",
-                params![apps.claude, apps.codex, apps.gemini, apps.grokbuild, apps.opencode, apps.hermes, id],
+                "UPDATE skills SET enabled_claude = ?1, enabled_codex = ?2, enabled_gemini = ?3, enabled_grokbuild = ?4, enabled_opencode = ?5, enabled_hermes = ?6, enabled_windsurf = ?7 WHERE id = ?8",
+                params![apps.claude, apps.codex, apps.gemini, apps.grokbuild, apps.opencode, apps.hermes, apps.windsurf, id],
             )
             .map_err(|e| AppError::Database(e.to_string()))?;
         Ok(affected > 0)
@@ -260,5 +263,56 @@ impl Database {
 
         self.set_setting(INITIALIZED_KEY, "true")?;
         Ok(count)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::Connection;
+    use std::sync::Mutex;
+
+    #[test]
+    fn skill_round_trip_preserves_windsurf_flag_and_metadata_columns() {
+        let conn = Connection::open_in_memory().expect("open in-memory database");
+        Database::create_tables_on_conn(&conn).expect("create schema");
+        let database = Database {
+            conn: Mutex::new(conn),
+        };
+        let skill = InstalledSkill {
+            id: "owner/repo:skill".to_string(),
+            name: "Test Skill".to_string(),
+            description: Some("description".to_string()),
+            directory: "skill".to_string(),
+            repo_owner: Some("owner".to_string()),
+            repo_name: Some("repo".to_string()),
+            repo_branch: Some("main".to_string()),
+            readme_url: Some("https://example.com/readme".to_string()),
+            apps: SkillApps {
+                windsurf: true,
+                ..SkillApps::default()
+            },
+            installed_at: 123,
+            content_hash: Some("hash".to_string()),
+            updated_at: 456,
+        };
+
+        database.save_skill(&skill).expect("save skill");
+
+        let single = database
+            .get_installed_skill(&skill.id)
+            .expect("load skill")
+            .expect("saved skill exists");
+        assert!(single.apps.windsurf);
+        assert_eq!(single.installed_at, 123);
+        assert_eq!(single.content_hash.as_deref(), Some("hash"));
+        assert_eq!(single.updated_at, 456);
+
+        let all = database.get_all_installed_skills().expect("load all skills");
+        let from_all = all.get(&skill.id).expect("skill in collection");
+        assert!(from_all.apps.windsurf);
+        assert_eq!(from_all.installed_at, 123);
+        assert_eq!(from_all.content_hash.as_deref(), Some("hash"));
+        assert_eq!(from_all.updated_at, 456);
     }
 }

@@ -439,6 +439,12 @@ export interface Settings {
   windsurfAppPath?: string;
   // Windsurf/Devin 用户数据目录（包含 state.vscdb / Local State）
   windsurfUserDataDir?: string;
+  // Windsurf 全局 Skills 目录
+  windsurfSkillsDir?: string;
+  // Windsurf MCP 配置目录（包含 mcp_config.json）
+  windsurfMcpDir?: string;
+  // Windsurf Rules 目录（包含 global_rules.md）
+  windsurfRulesDir?: string;
 
   // ===== 当前供应商 ID（设备级）=====
   // 当前 Claude 供应商 ID（优先于数据库 is_current）

@@ -29,6 +29,7 @@ import {
   useWindsurfActions,
   useWindsurfStatus,
 } from "@/hooks/useWindsurf";
+import { useSettings } from "@/hooks/useSettings";
 import { settingsApi } from "@/lib/api";
 import type {
   WindsurfAccountSummary,
@@ -40,6 +41,9 @@ export default function WindsurfAccountsPanel() {
   const { data: accounts = [], isLoading } = useWindsurfAccounts();
   const { data: status } = useWindsurfStatus();
   const actions = useWindsurfActions();
+  const { settings: appSettings, updateSettings, saveSettings } = useSettings();
+  const [appPath, setAppPath] = useState("");
+  const [userDataDir, setUserDataDir] = useState("");
   const [tokenDialogOpen, setTokenDialogOpen] = useState(false);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [oauthDialogOpen, setOauthDialogOpen] = useState(false);
@@ -60,6 +64,32 @@ export default function WindsurfAccountsPanel() {
   const oauthFlowRef = useRef(0);
   const oauthCancelledRef = useRef(false);
 
+  useEffect(() => {
+    if (!appSettings) return;
+    setAppPath(appSettings.windsurfAppPath ?? "");
+    setUserDataDir(appSettings.windsurfUserDataDir ?? "");
+  }, [appSettings]);
+
+  const persistLocation = async (
+    field: "windsurfAppPath" | "windsurfUserDataDir",
+    value: string,
+  ) => {
+    const normalized = value.trim();
+    const updates = { [field]: normalized || undefined } as Parameters<
+      typeof updateSettings
+    >[0];
+    updateSettings(updates);
+    try {
+      await saveSettings(updates, { silent: true });
+      toast.success(
+        t("windsurf.notifications.locationSaved", {
+          defaultValue: "Windsurf 路径已保存",
+        }),
+      );
+    } catch (error) {
+      toast.error(String(error));
+    }
+  };
   const resetOauthState = () => {
     setOauthSession(null);
     setOauthWaiting(false);
@@ -288,23 +318,41 @@ export default function WindsurfAccountsPanel() {
                   : t("windsurf.status.stopped", { defaultValue: "未运行" })}
               </Badge>
             </div>
-            <p
-              className="truncate text-xs text-muted-foreground"
-              title={status?.appPath ?? undefined}
-            >
-              {status?.appPath ||
-                t("windsurf.status.pathMissing", {
-                  defaultValue: "尚未检测到 Windsurf/Devin 可执行文件",
+            <div className="space-y-2 pt-1">
+              <label className="block text-xs text-muted-foreground">
+                {t("windsurf.settings.appPath", {
+                  defaultValue: "安装目录 / 可执行文件",
                 })}
-            </p>
-            {status?.userDataDir && (
-              <p
-                className="truncate text-xs text-muted-foreground"
-                title={status.userDataDir}
-              >
-                {status.userDataDir}
-              </p>
-            )}
+                <Input
+                  value={appPath}
+                  onChange={(event) => setAppPath(event.target.value)}
+                  onBlur={() =>
+                    void persistLocation("windsurfAppPath", appPath)
+                  }
+                  placeholder={
+                    status?.appPath ||
+                    t("windsurf.status.pathMissing", {
+                      defaultValue: "选择或填写 Windsurf 可执行文件路径",
+                    })
+                  }
+                  className="mt-1 h-8 text-xs"
+                />
+              </label>
+              <label className="block text-xs text-muted-foreground">
+                {t("windsurf.settings.userDataDir", {
+                  defaultValue: "用户数据目录",
+                })}
+                <Input
+                  value={userDataDir}
+                  onChange={(event) => setUserDataDir(event.target.value)}
+                  onBlur={() =>
+                    void persistLocation("windsurfUserDataDir", userDataDir)
+                  }
+                  placeholder={status?.userDataDir || "%APPDATA%/Devin"}
+                  className="mt-1 h-8 text-xs"
+                />
+              </label>
+            </div>
           </div>
           <div className="flex shrink-0 flex-wrap justify-end gap-2">
             <Button

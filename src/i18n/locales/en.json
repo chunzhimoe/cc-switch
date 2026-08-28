@@ -772,6 +772,10 @@
     "openclawConfigDirDescription": "Override OpenClaw configuration directory (openclaw.json).",
     "hermesConfigDir": "Hermes Configuration Directory",
     "hermesConfigDirDescription": "Override Hermes configuration directory (config.yaml).",
+    "windsurfUserDataDir": "Windsurf user-data directory",
+    "windsurfSkillsDir": "Windsurf Skills directory",
+    "windsurfMcpDir": "Windsurf MCP directory",
+    "windsurfRulesDir": "Windsurf Rules directory",
     "browsePlaceholderClaude": "e.g., /home/<your-username>/.claude",
     "browsePlaceholderCodex": "e.g., /home/<your-username>/.codex",
     "browsePlaceholderGemini": "e.g., /home/<your-username>/.gemini",
@@ -2288,6 +2292,10 @@
       "stopped": "Stopped",
       "pathMissing": "Windsurf/Devin executable not detected"
     },
+    "settings": {
+      "appPath": "Install path / executable",
+      "userDataDir": "User-data directory"
+    },
     "actions": {
       "detect": "Detect again",
       "importLocal": "Import local account",
@@ -2302,7 +2310,8 @@
       "deleted": "Windsurf account deleted",
       "switched": "Windsurf switched and restarted",
       "switchedWithWarning": "Account switched, but Windsurf could not start: {{warning}}",
-      "pathDetected": "Windsurf detected: {{path}}"
+      "pathDetected": "Windsurf detected: {{path}}",
+      "locationSaved": "Windsurf paths saved"
     },
     "addToken": {
       "title": "Add Windsurf token",

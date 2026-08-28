@@ -432,6 +432,15 @@ pub struct AppSettings {
     /// Windsurf user-data root containing `User/globalStorage/state.vscdb`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub windsurf_user_data_dir: Option<String>,
+    /// Windsurf global Skills directory containing one subdirectory per skill.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub windsurf_skills_dir: Option<String>,
+    /// Directory containing Windsurf/Devin's `mcp_config.json`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub windsurf_mcp_dir: Option<String>,
+    /// Directory containing Windsurf's `global_rules.md`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub windsurf_rules_dir: Option<String>,
 
     // ===== 当前供应商 ID（设备级）=====
     /// 当前 Claude 供应商 ID（本地存储，优先于数据库 is_current）
@@ -548,6 +557,9 @@ impl Default for AppSettings {
             hermes_config_dir: None,
             windsurf_app_path: None,
             windsurf_user_data_dir: None,
+            windsurf_skills_dir: None,
+            windsurf_mcp_dir: None,
+            windsurf_rules_dir: None,
             current_provider_claude: None,
             current_provider_claude_desktop: None,
             current_provider_codex: None,
@@ -639,6 +651,27 @@ impl AppSettings {
 
         self.windsurf_user_data_dir = self
             .windsurf_user_data_dir
+            .as_ref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string());
+
+        self.windsurf_skills_dir = self
+            .windsurf_skills_dir
+            .as_ref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string());
+
+        self.windsurf_mcp_dir = self
+            .windsurf_mcp_dir
+            .as_ref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string());
+
+        self.windsurf_rules_dir = self
+            .windsurf_rules_dir
             .as_ref()
             .map(|s| s.trim())
             .filter(|s| !s.is_empty())
@@ -993,6 +1026,54 @@ pub fn set_windsurf_user_data_dir(path: Option<&str>) -> Result<(), AppError> {
         .filter(|value| !value.is_empty())
         .map(ToString::to_string);
     mutate_settings(|settings| settings.windsurf_user_data_dir = path.clone())
+}
+
+pub fn get_windsurf_skills_dir() -> Option<PathBuf> {
+    let settings = settings_store().read().ok()?;
+    settings
+        .windsurf_skills_dir
+        .as_ref()
+        .map(|p| resolve_override_path(p))
+}
+
+pub fn set_windsurf_skills_dir(path: Option<&str>) -> Result<(), AppError> {
+    let path = path
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string);
+    mutate_settings(|settings| settings.windsurf_skills_dir = path.clone())
+}
+
+pub fn get_windsurf_mcp_dir() -> Option<PathBuf> {
+    let settings = settings_store().read().ok()?;
+    settings
+        .windsurf_mcp_dir
+        .as_ref()
+        .map(|p| resolve_override_path(p))
+}
+
+pub fn set_windsurf_mcp_dir(path: Option<&str>) -> Result<(), AppError> {
+    let path = path
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string);
+    mutate_settings(|settings| settings.windsurf_mcp_dir = path.clone())
+}
+
+pub fn get_windsurf_rules_dir() -> Option<PathBuf> {
+    let settings = settings_store().read().ok()?;
+    settings
+        .windsurf_rules_dir
+        .as_ref()
+        .map(|p| resolve_override_path(p))
+}
+
+pub fn set_windsurf_rules_dir(path: Option<&str>) -> Result<(), AppError> {
+    let path = path
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string);
+    mutate_settings(|settings| settings.windsurf_rules_dir = path.clone())
 }
 
 pub fn preserve_codex_official_auth_on_switch() -> bool {

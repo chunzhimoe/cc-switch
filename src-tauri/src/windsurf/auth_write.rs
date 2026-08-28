@@ -281,7 +281,185 @@ fn encrypt_secret_payload(
     Ok(encrypted)
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_os = "macos")]
+const MACOS_SAFE_STORAGE_IV: [u8; 16] = [b' '; 16];
+#[cfg(target_os = "macos")]
+const MACOS_SAFE_STORAGE_SALT: &[u8] = b"saltysalt";
+#[cfg(target_os = "macos")]
+const MACOS_SAFE_STORAGE_ITERATIONS: u32 = 1003;
+
+#[cfg(target_os = "macos")]
+#[derive(Clone, Copy)]
+struct MacosKeychainQuery {
+    service: &'static str,
+    account: Option<&'static str>,
+}
+
+#[cfg(target_os = "macos")]
+const DEVIN_KEYCHAIN_QUERIES: [MacosKeychainQuery; 4] = [
+    MacosKeychainQuery {
+        service: "Devin Safe Storage",
+        account: Some("Devin"),
+    },
+    MacosKeychainQuery {
+        service: "Devin Safe Storage",
+        account: Some("Devin Key"),
+    },
+    MacosKeychainQuery {
+        service: "Devin Safe Storage",
+        account: Some("devin"),
+    },
+    MacosKeychainQuery {
+        service: "Devin Safe Storage",
+        account: None,
+    },
+];
+
+#[cfg(target_os = "macos")]
+const WINDSURF_KEYCHAIN_QUERIES: [MacosKeychainQuery; 5] = [
+    MacosKeychainQuery {
+        service: "Windsurf Safe Storage",
+        account: Some("Windsurf Key"),
+    },
+    MacosKeychainQuery {
+        service: "Windsurf Safe Storage",
+        account: Some("Windsurf"),
+    },
+    MacosKeychainQuery {
+        service: "Windsurf Safe Storage",
+        account: Some("windsurf"),
+    },
+    MacosKeychainQuery {
+        service: "Windsurf Safe Storage",
+        account: Some("Windsurf Safe Storage"),
+    },
+    MacosKeychainQuery {
+        service: "Windsurf Safe Storage",
+        account: None,
+    },
+];
+
+#[cfg(target_os = "macos")]
+fn macos_profile_prefers_windsurf(profile_dir: &Path) -> bool {
+    profile_dir
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.to_ascii_lowercase().starts_with("windsurf"))
+}
+
+#[cfg(target_os = "macos")]
+fn macos_keychain_queries(profile_dir: &Path) -> impl Iterator<Item = MacosKeychainQuery> + '_ {
+    let (primary, fallback): (&[MacosKeychainQuery], &[MacosKeychainQuery]) =
+        if macos_profile_prefers_windsurf(profile_dir) {
+            (&WINDSURF_KEYCHAIN_QUERIES, &DEVIN_KEYCHAIN_QUERIES)
+        } else {
+            (&DEVIN_KEYCHAIN_QUERIES, &WINDSURF_KEYCHAIN_QUERIES)
+        };
+    primary.iter().chain(fallback.iter()).copied()
+}
+
+#[cfg(target_os = "macos")]
+fn strip_macos_command_line_ending(mut value: String) -> String {
+    if value.ends_with("\r\n") {
+        value.truncate(value.len() - 2);
+    } else if value.ends_with('\r') || value.ends_with('\n') {
+        value.pop();
+    }
+    value
+}
+
+#[cfg(target_os = "macos")]
+fn read_macos_keychain_secret(query: MacosKeychainQuery) -> Option<String> {
+    use std::process::Command;
+
+    let mut command = Command::new("/usr/bin/security");
+    command.args(["find-generic-password", "-w", "-s", query.service]);
+    if let Some(account) = query.account {
+        command.args(["-a", account]);
+    }
+
+    let output = command.output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+
+    let secret = String::from_utf8(output.stdout).ok()?;
+    let secret = strip_macos_command_line_ending(secret);
+    (!secret.is_empty()).then_some(secret)
+}
+
+#[cfg(target_os = "macos")]
+fn read_macos_safe_storage_password(
+    profile_dir: &Path,
+) -> Result<zeroize::Zeroizing<String>, AppError> {
+    for query in macos_keychain_queries(profile_dir) {
+        if let Some(secret) = read_macos_keychain_secret(query) {
+            return Ok(zeroize::Zeroizing::new(secret));
+        }
+    }
+
+    Err(AppError::localized(
+        "windsurf.secret_storage_keychain_missing",
+        "读取 Devin/Windsurf Safe Storage 密钥失败",
+        "Failed to read the Devin/Windsurf Safe Storage key from Keychain",
+    ))
+}
+
+#[cfg(target_os = "macos")]
+fn encrypt_macos_secret(plaintext: &[u8], password: &[u8]) -> Result<Vec<u8>, AppError> {
+    use aes::Aes128;
+    use cbc::cipher::block_padding::Pkcs7;
+    use cbc::cipher::{BlockEncryptMut, KeyIvInit};
+    use pbkdf2::pbkdf2_hmac;
+    use sha1::Sha1;
+    use zeroize::Zeroizing;
+
+    type Aes128CbcEncryptor = cbc::Encryptor<Aes128>;
+
+    let mut key = Zeroizing::new([0u8; 16]);
+    pbkdf2_hmac::<Sha1>(
+        password,
+        MACOS_SAFE_STORAGE_SALT,
+        MACOS_SAFE_STORAGE_ITERATIONS,
+        &mut key[..],
+    );
+
+    let cipher = Aes128CbcEncryptor::new_from_slices(&key[..], &MACOS_SAFE_STORAGE_IV)
+        .map_err(|error| {
+            AppError::Config(format!("Failed to initialize AES-CBC encryptor: {error}"))
+        })?;
+    let message_len = plaintext.len();
+    let padding_len = 16 - (message_len % 16);
+    let mut buffer = Zeroizing::new(plaintext.to_vec());
+    buffer.resize(message_len + padding_len, 0);
+    let ciphertext = cipher
+        .encrypt_padded_mut::<Pkcs7>(buffer.as_mut_slice(), message_len)
+        .map_err(|error| AppError::Config(format!("AES-CBC encryption failed: {error}")))?
+        .to_vec();
+
+    let mut encrypted = Vec::with_capacity(V10_PREFIX.len() + ciphertext.len());
+    encrypted.extend_from_slice(V10_PREFIX);
+    encrypted.extend_from_slice(&ciphertext);
+    Ok(encrypted)
+}
+
+#[cfg(target_os = "macos")]
+fn encrypt_secret_payload(
+    plaintext: &[u8],
+    preferred_prefix: Option<&str>,
+    profile_dir: &Path,
+) -> Result<Vec<u8>, AppError> {
+    if preferred_prefix == Some("v11") {
+        return Err(AppError::Config(
+            "Windsurf SecretStorage v11 writes are not supported on macOS".to_string(),
+        ));
+    }
+
+    let password = read_macos_safe_storage_password(profile_dir)?;
+    encrypt_macos_secret(plaintext, password.as_bytes())
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
 fn encrypt_secret_payload(
     _plaintext: &[u8],
     _preferred_prefix: Option<&str>,
@@ -289,7 +467,49 @@ fn encrypt_secret_payload(
 ) -> Result<Vec<u8>, AppError> {
     Err(AppError::localized(
         "windsurf.secret_storage_platform_pending",
-        "当前阶段仅支持 Windows Windsurf SecretStorage 写入",
-        "This phase only supports Windsurf SecretStorage writes on Windows",
+        "当前阶段仅支持 Windows/macOS Windsurf SecretStorage 写入",
+        "This phase only supports Windsurf SecretStorage writes on Windows/macOS",
     ))
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod macos_tests {
+    use super::*;
+
+    #[test]
+    fn strips_only_security_command_line_ending() {
+        assert_eq!(
+            strip_macos_command_line_ending("  secret with spaces  \n".to_string()),
+            "  secret with spaces  "
+        );
+        assert_eq!(
+            strip_macos_command_line_ending("secret\n\n".to_string()),
+            "secret\n"
+        );
+    }
+
+    #[test]
+    fn orders_keychain_queries_by_profile_brand() {
+        let windsurf = macos_keychain_queries(Path::new("/tmp/Windsurf"))
+            .next()
+            .expect("Windsurf query");
+        assert_eq!(windsurf.service, "Windsurf Safe Storage");
+
+        let devin = macos_keychain_queries(Path::new("/tmp/Devin"))
+            .next()
+            .expect("Devin query");
+        assert_eq!(devin.service, "Devin Safe Storage");
+    }
+
+    #[test]
+    fn encrypts_with_chromium_macos_secret_storage_format() {
+        let encrypted = encrypt_macos_secret(b"hello", b"test-password").expect("encrypt");
+        assert_eq!(
+            encrypted,
+            vec![
+                0x76, 0x31, 0x30, 0x95, 0x88, 0x15, 0xf4, 0x8a, 0x74, 0x22, 0x7a, 0x2a,
+                0x31, 0x53, 0x50, 0x50, 0xc6, 0x88, 0x42,
+            ]
+        );
+    }
 }

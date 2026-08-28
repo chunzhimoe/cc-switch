@@ -8,6 +8,7 @@ const getConfigDirMock = vi.hoisted(() => vi.fn());
 const selectConfigDirectoryMock = vi.hoisted(() => vi.fn());
 const setAppConfigDirOverrideMock = vi.hoisted(() => vi.fn());
 const homeDirMock = vi.hoisted(() => vi.fn<() => Promise<string>>());
+const configDirMock = vi.hoisted(() => vi.fn<() => Promise<string>>());
 const joinMock = vi.hoisted(() =>
   vi.fn(async (...segments: string[]) => segments.join("/")),
 );
@@ -24,6 +25,7 @@ vi.mock("@/lib/api", () => ({
 
 vi.mock("@tauri-apps/api/path", () => ({
   homeDir: homeDirMock,
+  configDir: configDirMock,
   join: joinMock,
 }));
 
@@ -60,6 +62,7 @@ describe("useDirectorySettings", () => {
     vi.clearAllMocks();
 
     homeDirMock.mockResolvedValue("/home/mock");
+    configDirMock.mockResolvedValue("/config/mock");
     joinMock.mockImplementation(async (...segments: string[]) =>
       segments.join("/"),
     );
@@ -72,6 +75,7 @@ describe("useDirectorySettings", () => {
       if (app === "grokbuild") return "/remote/grok";
       if (app === "opencode") return "/remote/opencode";
       if (app === "openclaw") return "/remote/openclaw";
+      if (app === "windsurf") return "/remote/windsurf";
       return "/remote/hermes";
     });
     selectConfigDirectoryMock.mockReset();
@@ -96,7 +100,54 @@ describe("useDirectorySettings", () => {
       opencode: "/remote/opencode",
       openclaw: "/remote/openclaw",
       hermes: "/remote/hermes",
+      windsurfUserData: "/remote/windsurf",
+      windsurfSkills: "/home/mock/.codeium/windsurf/skills",
+      windsurfMcp: "/config/mock/devin",
+      windsurfRules: "/home/mock/.codeium/windsurf/memories",
     });
+  });
+
+  it("syncs persisted Windsurf directories after settings load", async () => {
+    type HookProps = { settings: SettingsFormState | null };
+    const { result, rerender } = renderHook(
+      ({ settings }: HookProps) =>
+        useDirectorySettings({ settings, onUpdateSettings }),
+      { initialProps: { settings: null } as HookProps },
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.resolvedDirs.windsurfUserData).toBe(
+      "/remote/windsurf",
+    );
+
+    rerender({
+      settings: createSettings({
+        windsurfUserDataDir: "  /persisted/user-data  ",
+        windsurfSkillsDir: "/persisted/skills",
+        windsurfMcpDir: "/persisted/mcp",
+        windsurfRulesDir: "/persisted/rules",
+      }),
+    });
+
+    await waitFor(() =>
+      expect(result.current.resolvedDirs).toMatchObject({
+        windsurfUserData: "/persisted/user-data",
+        windsurfSkills: "/persisted/skills",
+        windsurfMcp: "/persisted/mcp",
+        windsurfRules: "/persisted/rules",
+      }),
+    );
+
+    rerender({ settings: createSettings() });
+
+    await waitFor(() =>
+      expect(result.current.resolvedDirs).toMatchObject({
+        windsurfUserData: "/remote/windsurf",
+        windsurfSkills: "/home/mock/.codeium/windsurf/skills",
+        windsurfMcp: "/config/mock/devin",
+        windsurfRules: "/home/mock/.codeium/windsurf/memories",
+      }),
+    );
   });
 
   it("updates claude directory when browsing succeeds", async () => {
@@ -239,6 +290,33 @@ describe("useDirectorySettings", () => {
       openclawConfigDir: "/picked/openclaw",
     });
     expect(result.current.resolvedDirs.openclaw).toBe("/picked/openclaw");
+  });
+
+  it("updates Windsurf MCP directory independently", async () => {
+    selectConfigDirectoryMock.mockResolvedValue("/picked/windsurf-mcp");
+
+    const { result } = renderHook(() =>
+      useDirectorySettings({
+        settings: createSettings({ windsurfMcpDir: undefined }),
+        onUpdateSettings,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.browseDirectory("windsurfMcp");
+    });
+
+    expect(selectConfigDirectoryMock).toHaveBeenCalledWith(
+      "/config/mock/devin",
+    );
+    expect(onUpdateSettings).toHaveBeenCalledWith({
+      windsurfMcpDir: "/picked/windsurf-mcp",
+    });
+    expect(result.current.resolvedDirs.windsurfMcp).toBe(
+      "/picked/windsurf-mcp",
+    );
   });
 
   it("resetAllDirectories applies provided resolved values", async () => {

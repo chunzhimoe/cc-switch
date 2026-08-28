@@ -356,6 +356,10 @@ export function SettingsPage({
                             opencodeDir={settings.opencodeConfigDir}
                             openclawDir={settings.openclawConfigDir}
                             hermesDir={settings.hermesConfigDir}
+                            windsurfUserDataDir={settings.windsurfUserDataDir}
+                            windsurfSkillsDir={settings.windsurfSkillsDir}
+                            windsurfMcpDir={settings.windsurfMcpDir}
+                            windsurfRulesDir={settings.windsurfRulesDir}
                             onDirectoryChange={updateDirectory}
                             onBrowseDirectory={browseDirectory}
                             onResetDirectory={resetDirectory}

@@ -1,5 +1,7 @@
 # 修改归档
 
+- [2026-08-28 Windsurf v3.19.5 发布候选](./2026-08-28_Windsurf-v3.19.5发布.md) — 统一升级到 3.19.5，补齐 Windsurf Skills/目录覆盖、macOS SecretStorage 和 schema v18，并准备 v3.19.5-windsurf.1 构建。
+- [2026-08-28 Windsurf macOS SecretStorage 写入](./2026-08-28_Windsurf-macOS-SecretStorage写入.md) — 在 `auth_write.rs` 新增 macOS Keychain + PBKDF2/AES-128-CBC 分支，使 macOS 可写入 `state.vscdb` 的 SecretStorage 密文。
 - [2026-08-27 供应商级跳过 Auto 分类器](./2026-08-27_供应商跳过Auto分类器.md) — 在每个 Claude 供应商设置中增加高风险开关，按供应商投影 sandbox 与 bypassPermissions，并对称恢复 live 配置。
 - [2026-08-27 Windsurf v3.19.4 发布](./2026-08-27_Windsurf-v3.19.4发布.md) — 统一版本元数据并准备 Windsurf prerelease，包含 OAuth、多账号、静默切号和分类器直连修复。
 - [2026-08-27 Auto 分类器外部直连启用修复](./2026-08-27_Auto分类器外部直连修复.md) — 通过 Claude Code 的 `CLAUDE_CODE_AUTO_MODE_MODEL` 支持外部 API 直连，并修复本地代理 billing header 漏判与诊断。

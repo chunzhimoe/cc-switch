@@ -98,6 +98,7 @@ impl Database {
             enabled_grokbuild BOOLEAN NOT NULL DEFAULT 0,
             enabled_opencode BOOLEAN NOT NULL DEFAULT 0,
             enabled_hermes BOOLEAN NOT NULL DEFAULT 0,
+            enabled_windsurf BOOLEAN NOT NULL DEFAULT 0,
             installed_at INTEGER NOT NULL DEFAULT 0,
             content_hash TEXT,
             updated_at INTEGER NOT NULL DEFAULT 0
@@ -516,6 +517,11 @@ impl Database {
                         log::info!("迁移数据库从 v16 到 v17（MCP 添加 Windsurf 支持）");
                         Self::migrate_v16_to_v17(conn)?;
                         Self::set_user_version(conn, 17)?;
+                    }
+                    17 => {
+                        log::info!("迁移数据库从 v17 到 v18（Skills 添加 Windsurf 支持）");
+                        Self::migrate_v17_to_v18(conn)?;
+                        Self::set_user_version(conn, 18)?;
                     }
                     _ => {
                         return Err(AppError::Database(format!(
@@ -1536,6 +1542,19 @@ impl Database {
             Self::add_column_if_missing(
                 conn,
                 "mcp_servers",
+                "enabled_windsurf",
+                "BOOLEAN NOT NULL DEFAULT 0",
+            )?;
+        }
+        Ok(())
+    }
+
+    /// v17 -> v18: persist Windsurf enablement for unified Skills management.
+    fn migrate_v17_to_v18(conn: &Connection) -> Result<(), AppError> {
+        if Self::table_exists(conn, "skills")? {
+            Self::add_column_if_missing(
+                conn,
+                "skills",
                 "enabled_windsurf",
                 "BOOLEAN NOT NULL DEFAULT 0",
             )?;
@@ -3238,6 +3257,36 @@ mod tests {
         )?);
         let values: (i64, i64) = conn.query_row(
             "SELECT enabled_hermes, enabled_windsurf FROM mcp_servers WHERE id = 'mcp-1'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+        assert_eq!(values, (1, 0));
+
+        Ok(())
+    }
+
+    #[test]
+    fn migrate_v17_to_v18_adds_windsurf_skill_flag() -> Result<(), AppError> {
+        let conn = Connection::open_in_memory()?;
+        conn.execute_batch(
+            "CREATE TABLE skills (
+                id TEXT PRIMARY KEY,
+                enabled_hermes BOOLEAN NOT NULL DEFAULT 0
+            );
+            INSERT INTO skills (id, enabled_hermes) VALUES ('skill-1', 1);",
+        )?;
+        Database::set_user_version(&conn, 17)?;
+
+        Database::apply_schema_migrations_on_conn(&conn)?;
+
+        assert_eq!(Database::get_user_version(&conn)?, SCHEMA_VERSION);
+        assert!(Database::has_column(
+            &conn,
+            "skills",
+            "enabled_windsurf"
+        )?);
+        let values: (i64, i64) = conn.query_row(
+            "SELECT enabled_hermes, enabled_windsurf FROM skills WHERE id = 'skill-1'",
             [],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )?;

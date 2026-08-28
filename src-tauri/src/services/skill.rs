@@ -566,12 +566,7 @@ impl SkillService {
                 }
             }
             AppType::Windsurf => {
-                return Err(AppError::localized(
-                    "app.skills_unsupported",
-                    "Windsurf 暂不支持 Skills 管理",
-                    "Windsurf does not currently support Skills management",
-                )
-                .into());
+                return Ok(crate::windsurf::paths::skills_dir()?);
             }
         }
 
@@ -589,7 +584,7 @@ impl SkillService {
             AppType::OpenCode => home.join(".config").join("opencode").join("skills"),
             AppType::OpenClaw => home.join(".openclaw").join("skills"),
             AppType::Hermes => crate::hermes_config::get_hermes_dir().join("skills"),
-            AppType::Windsurf => unreachable!("Windsurf handled as unsupported above"),
+            AppType::Windsurf => crate::windsurf::paths::skills_dir()?,
         })
     }
 
@@ -1671,7 +1666,7 @@ impl SkillService {
     /// - Symlink: 仅使用 symlink
     /// - Copy: 仅使用文件复制
     pub fn sync_to_app_dir(directory: &str, app: &AppType) -> Result<()> {
-        if matches!(app, AppType::ClaudeDesktop | AppType::Windsurf) {
+        if matches!(app, AppType::ClaudeDesktop) {
             return Ok(());
         }
 
@@ -1846,7 +1841,7 @@ impl SkillService {
 
     /// 从应用目录删除 Skill（支持 symlink 和真实目录）
     pub fn remove_from_app(directory: &str, app: &AppType) -> Result<()> {
-        if matches!(app, AppType::ClaudeDesktop | AppType::Windsurf) {
+        if matches!(app, AppType::ClaudeDesktop) {
             return Ok(());
         }
 
@@ -1867,7 +1862,7 @@ impl SkillService {
 
     /// 同步所有已启用的 Skills 到指定应用
     pub fn sync_to_app(db: &Arc<Database>, app: &AppType) -> Result<()> {
-        if matches!(app, AppType::ClaudeDesktop | AppType::Windsurf) {
+        if matches!(app, AppType::ClaudeDesktop) {
             return Ok(());
         }
 

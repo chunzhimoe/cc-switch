@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { homeDir, join } from "@tauri-apps/api/path";
+import { homeDir, join, configDir } from "@tauri-apps/api/path";
 import { settingsApi, type AppId } from "@/lib/api";
 import type { SettingsFormState } from "./useSettingsForm";
 
-export type DirectoryAppId = Exclude<AppId, "claude-desktop" | "windsurf">;
+export type DirectoryAppId =
+  | Exclude<AppId, "claude-desktop">
+  | "windsurfSkills"
+  | "windsurfMcp"
+  | "windsurfRules";
 type AppDirectoryKey =
   | "claude"
   | "codex"
@@ -13,7 +17,11 @@ type AppDirectoryKey =
   | "grokbuild"
   | "opencode"
   | "openclaw"
-  | "hermes";
+  | "hermes"
+  | "windsurfUserData"
+  | "windsurfSkills"
+  | "windsurfMcp"
+  | "windsurfRules";
 type DirectoryKey = "appConfig" | AppDirectoryKey;
 
 export interface ResolvedDirectories {
@@ -25,6 +33,10 @@ export interface ResolvedDirectories {
   opencode: string;
   openclaw: string;
   hermes: string;
+  windsurfUserData: string;
+  windsurfSkills: string;
+  windsurfMcp: string;
+  windsurfRules: string;
 }
 
 // Single source of truth for per-app directory metadata.
@@ -39,6 +51,16 @@ const APP_DIRECTORY_META: Record<
   opencode: { key: "opencode", defaultFolder: ".config/opencode" },
   openclaw: { key: "openclaw", defaultFolder: ".openclaw" },
   hermes: { key: "hermes", defaultFolder: ".hermes" },
+  windsurf: { key: "windsurfUserData", defaultFolder: "%APPDATA%/Devin" },
+  windsurfSkills: {
+    key: "windsurfSkills",
+    defaultFolder: ".codeium/windsurf/skills",
+  },
+  windsurfMcp: { key: "windsurfMcp", defaultFolder: "" },
+  windsurfRules: {
+    key: "windsurfRules",
+    defaultFolder: ".codeium/windsurf/memories",
+  },
 };
 
 const DIRECTORY_KEY_TO_SETTINGS_FIELD: Record<
@@ -52,6 +74,10 @@ const DIRECTORY_KEY_TO_SETTINGS_FIELD: Record<
   opencode: "opencodeConfigDir",
   openclaw: "openclawConfigDir",
   hermes: "hermesConfigDir",
+  windsurfUserData: "windsurfUserDataDir",
+  windsurfSkills: "windsurfSkillsDir",
+  windsurfMcp: "windsurfMcpDir",
+  windsurfRules: "windsurfRulesDir",
 };
 
 const sanitizeDir = (value?: string | null): string | undefined => {
@@ -77,6 +103,10 @@ const computeDefaultConfigDir = async (
   app: DirectoryAppId,
 ): Promise<string | undefined> => {
   try {
+    if (app === "windsurf" || app === "windsurfMcp") {
+      const config = await configDir();
+      return await join(config, app === "windsurf" ? "Devin" : "devin");
+    }
     const home = await homeDir();
     return await join(home, APP_DIRECTORY_META[app].defaultFolder);
   } catch (error) {
@@ -138,6 +168,10 @@ export function useDirectorySettings({
     opencode: "",
     openclaw: "",
     hermes: "",
+    windsurfUserData: "",
+    windsurfSkills: "",
+    windsurfMcp: "",
+    windsurfRules: "",
   });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -150,6 +184,10 @@ export function useDirectorySettings({
     opencode: "",
     openclaw: "",
     hermes: "",
+    windsurfUserData: "",
+    windsurfSkills: "",
+    windsurfMcp: "",
+    windsurfRules: "",
   });
   const initialAppConfigDirRef = useRef<string | undefined>(undefined);
 
@@ -169,6 +207,7 @@ export function useDirectorySettings({
           opencodeDir,
           openclawDir,
           hermesDir,
+          windsurfDir,
           defaultAppConfig,
           defaultClaudeDir,
           defaultCodexDir,
@@ -177,6 +216,7 @@ export function useDirectorySettings({
           defaultOpencodeDir,
           defaultOpenclawDir,
           defaultHermesDir,
+          defaultWindsurfDir,
         ] = await Promise.all([
           settingsApi.getAppConfigDirOverride(),
           settingsApi.getConfigDir("claude"),
@@ -186,6 +226,7 @@ export function useDirectorySettings({
           settingsApi.getConfigDir("opencode"),
           settingsApi.getConfigDir("openclaw"),
           settingsApi.getConfigDir("hermes"),
+          settingsApi.getConfigDir("windsurf"),
           computeDefaultAppConfigDir(),
           computeDefaultConfigDir("claude"),
           computeDefaultConfigDir("codex"),
@@ -194,11 +235,15 @@ export function useDirectorySettings({
           computeDefaultConfigDir("opencode"),
           computeDefaultConfigDir("openclaw"),
           computeDefaultConfigDir("hermes"),
+          computeDefaultConfigDir("windsurf"),
         ]);
 
         if (!active) return;
 
         const normalizedOverride = sanitizeDir(overrideRaw ?? undefined);
+
+        const defaultWindsurfUserData =
+          sanitizeDir(windsurfDir) ?? sanitizeDir(defaultWindsurfDir) ?? "";
 
         defaultsRef.current = {
           appConfig: defaultAppConfig ?? "",
@@ -209,6 +254,20 @@ export function useDirectorySettings({
           opencode: defaultOpencodeDir ?? "",
           openclaw: defaultOpenclawDir ?? "",
           hermes: defaultHermesDir ?? "",
+          windsurfUserData: defaultWindsurfUserData,
+          windsurfSkills: await join(
+            await homeDir(),
+            ".codeium",
+            "windsurf",
+            "skills",
+          ),
+          windsurfMcp: await join(await configDir(), "devin"),
+          windsurfRules: await join(
+            await homeDir(),
+            ".codeium",
+            "windsurf",
+            "memories",
+          ),
         };
 
         setAppConfigDir(normalizedOverride);
@@ -223,6 +282,11 @@ export function useDirectorySettings({
           opencode: opencodeDir || defaultsRef.current.opencode,
           openclaw: openclawDir || defaultsRef.current.openclaw,
           hermes: hermesDir || defaultsRef.current.hermes,
+          windsurfUserData:
+            sanitizeDir(windsurfDir) || defaultsRef.current.windsurfUserData,
+          windsurfSkills: defaultsRef.current.windsurfSkills,
+          windsurfMcp: defaultsRef.current.windsurfMcp,
+          windsurfRules: defaultsRef.current.windsurfRules,
         });
       } catch (error) {
         console.error(
@@ -241,6 +305,51 @@ export function useDirectorySettings({
       active = false;
     };
   }, []);
+
+  const hasSettings = settings !== null;
+  const windsurfUserDataOverride = settings?.windsurfUserDataDir;
+  const windsurfSkillsOverride = settings?.windsurfSkillsDir;
+  const windsurfMcpOverride = settings?.windsurfMcpDir;
+  const windsurfRulesOverride = settings?.windsurfRulesDir;
+
+  useEffect(() => {
+    if (isLoading || !hasSettings) return;
+
+    const nextWindsurfUserData =
+      sanitizeDir(windsurfUserDataOverride) ??
+      defaultsRef.current.windsurfUserData;
+    const nextWindsurfSkills =
+      sanitizeDir(windsurfSkillsOverride) ?? defaultsRef.current.windsurfSkills;
+    const nextWindsurfMcp =
+      sanitizeDir(windsurfMcpOverride) ?? defaultsRef.current.windsurfMcp;
+    const nextWindsurfRules =
+      sanitizeDir(windsurfRulesOverride) ?? defaultsRef.current.windsurfRules;
+
+    setResolvedDirs((prev) => {
+      if (
+        prev.windsurfUserData === nextWindsurfUserData &&
+        prev.windsurfSkills === nextWindsurfSkills &&
+        prev.windsurfMcp === nextWindsurfMcp &&
+        prev.windsurfRules === nextWindsurfRules
+      ) {
+        return prev;
+      }
+      return {
+        ...prev,
+        windsurfUserData: nextWindsurfUserData,
+        windsurfSkills: nextWindsurfSkills,
+        windsurfMcp: nextWindsurfMcp,
+        windsurfRules: nextWindsurfRules,
+      };
+    });
+  }, [
+    hasSettings,
+    isLoading,
+    windsurfUserDataOverride,
+    windsurfSkillsOverride,
+    windsurfMcpOverride,
+    windsurfRulesOverride,
+  ]);
 
   const updateDirectoryState = useCallback(
     (key: DirectoryKey, value?: string) => {
@@ -365,6 +474,13 @@ export function useDirectorySettings({
         opencode: overrides?.opencode ?? defaultsRef.current.opencode,
         openclaw: overrides?.openclaw ?? defaultsRef.current.openclaw,
         hermes: overrides?.hermes ?? defaultsRef.current.hermes,
+        windsurfUserData:
+          overrides?.windsurfUserData ?? defaultsRef.current.windsurfUserData,
+        windsurfSkills:
+          overrides?.windsurfSkills ?? defaultsRef.current.windsurfSkills,
+        windsurfMcp: overrides?.windsurfMcp ?? defaultsRef.current.windsurfMcp,
+        windsurfRules:
+          overrides?.windsurfRules ?? defaultsRef.current.windsurfRules,
       });
     },
     [],

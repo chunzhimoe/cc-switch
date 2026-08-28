@@ -114,6 +114,10 @@ export function useSettings(): UseSettingsResult {
       opencode: sanitizeDir(data?.opencodeConfigDir),
       openclaw: sanitizeDir(data?.openclawConfigDir),
       hermes: sanitizeDir(data?.hermesConfigDir),
+      windsurfUserData: sanitizeDir(data?.windsurfUserDataDir),
+      windsurfSkills: sanitizeDir(data?.windsurfSkillsDir),
+      windsurfMcp: sanitizeDir(data?.windsurfMcpDir),
+      windsurfRules: sanitizeDir(data?.windsurfRulesDir),
     });
     setRequiresRestart(false);
   }, [
@@ -195,6 +199,19 @@ export function useSettings(): UseSettingsResult {
         const sanitizedOpenclawDir = sanitizeDir(
           mergedSettings.openclawConfigDir,
         );
+        const sanitizedHermesDir = sanitizeDir(mergedSettings.hermesConfigDir);
+        const sanitizedWindsurfUserDataDir = sanitizeDir(
+          mergedSettings.windsurfUserDataDir,
+        );
+        const sanitizedWindsurfSkillsDir = sanitizeDir(
+          mergedSettings.windsurfSkillsDir,
+        );
+        const sanitizedWindsurfMcpDir = sanitizeDir(
+          mergedSettings.windsurfMcpDir,
+        );
+        const sanitizedWindsurfRulesDir = sanitizeDir(
+          mergedSettings.windsurfRulesDir,
+        );
         const {
           webdavSync: _ignoredWebdavSync,
           s3Sync: _ignoredS3Sync,
@@ -209,6 +226,12 @@ export function useSettings(): UseSettingsResult {
           grokConfigDir: sanitizedGrokDir,
           opencodeConfigDir: sanitizedOpencodeDir,
           openclawConfigDir: sanitizedOpenclawDir,
+          hermesConfigDir: sanitizedHermesDir,
+          windsurfAppPath: sanitizeDir(mergedSettings.windsurfAppPath),
+          windsurfUserDataDir: sanitizedWindsurfUserDataDir,
+          windsurfSkillsDir: sanitizedWindsurfSkillsDir,
+          windsurfMcpDir: sanitizedWindsurfMcpDir,
+          windsurfRulesDir: sanitizedWindsurfRulesDir,
           language: mergedSettings.language,
         };
 
@@ -328,6 +351,19 @@ export function useSettings(): UseSettingsResult {
         const sanitizedOpenclawDir = sanitizeDir(
           mergedSettings.openclawConfigDir,
         );
+        const sanitizedHermesDir = sanitizeDir(mergedSettings.hermesConfigDir);
+        const sanitizedWindsurfUserDataDir = sanitizeDir(
+          mergedSettings.windsurfUserDataDir,
+        );
+        const sanitizedWindsurfSkillsDir = sanitizeDir(
+          mergedSettings.windsurfSkillsDir,
+        );
+        const sanitizedWindsurfMcpDir = sanitizeDir(
+          mergedSettings.windsurfMcpDir,
+        );
+        const sanitizedWindsurfRulesDir = sanitizeDir(
+          mergedSettings.windsurfRulesDir,
+        );
         const previousAppDir = initialAppConfigDir;
         const previousClaudeDir = sanitizeDir(data?.claudeConfigDir);
         const previousCodexDir = sanitizeDir(data?.codexConfigDir);
@@ -349,6 +385,12 @@ export function useSettings(): UseSettingsResult {
           grokConfigDir: sanitizedGrokDir,
           opencodeConfigDir: sanitizedOpencodeDir,
           openclawConfigDir: sanitizedOpenclawDir,
+          hermesConfigDir: sanitizedHermesDir,
+          windsurfAppPath: sanitizeDir(mergedSettings.windsurfAppPath),
+          windsurfUserDataDir: sanitizedWindsurfUserDataDir,
+          windsurfSkillsDir: sanitizedWindsurfSkillsDir,
+          windsurfMcpDir: sanitizedWindsurfMcpDir,
+          windsurfRulesDir: sanitizedWindsurfRulesDir,
           language: mergedSettings.language,
         };
 

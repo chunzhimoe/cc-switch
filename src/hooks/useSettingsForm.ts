@@ -125,6 +125,12 @@ export function useSettingsForm(): UseSettingsFormResult {
       grokConfigDir: sanitizeDir(data.grokConfigDir),
       opencodeConfigDir: sanitizeDir(data.opencodeConfigDir),
       openclawConfigDir: sanitizeDir(data.openclawConfigDir),
+      hermesConfigDir: sanitizeDir(data.hermesConfigDir),
+      windsurfAppPath: sanitizeDir(data.windsurfAppPath),
+      windsurfUserDataDir: sanitizeDir(data.windsurfUserDataDir),
+      windsurfSkillsDir: sanitizeDir(data.windsurfSkillsDir),
+      windsurfMcpDir: sanitizeDir(data.windsurfMcpDir),
+      windsurfRulesDir: sanitizeDir(data.windsurfRulesDir),
       language: normalizedLanguage,
     };
 
@@ -192,6 +198,12 @@ export function useSettingsForm(): UseSettingsFormResult {
         grokConfigDir: sanitizeDir(serverData.grokConfigDir),
         opencodeConfigDir: sanitizeDir(serverData.opencodeConfigDir),
         openclawConfigDir: sanitizeDir(serverData.openclawConfigDir),
+        hermesConfigDir: sanitizeDir(serverData.hermesConfigDir),
+        windsurfAppPath: sanitizeDir(serverData.windsurfAppPath),
+        windsurfUserDataDir: sanitizeDir(serverData.windsurfUserDataDir),
+        windsurfSkillsDir: sanitizeDir(serverData.windsurfSkillsDir),
+        windsurfMcpDir: sanitizeDir(serverData.windsurfMcpDir),
+        windsurfRulesDir: sanitizeDir(serverData.windsurfRulesDir),
         language: normalizedLanguage,
       };
 

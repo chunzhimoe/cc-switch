@@ -253,6 +253,7 @@ export const handlers = [
 
   http.post(`${TAURI_ENDPOINT}/get_config_dir`, async ({ request }) => {
     const { app } = await withJson<{ app: AppId }>(request);
+    if (app === "windsurf") return success("/default/windsurf");
     return success(app === "claude" ? "/default/claude" : "/default/codex");
   }),
 

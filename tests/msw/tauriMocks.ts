@@ -61,5 +61,6 @@ void server;
 
 vi.mock("@tauri-apps/api/path", () => ({
   homeDir: async () => "/home/mock",
+  configDir: async () => "/config/mock",
   join: async (...segments: string[]) => segments.join("/"),
 }));

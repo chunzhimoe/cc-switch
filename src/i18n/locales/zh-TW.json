@@ -772,6 +772,10 @@
     "openclawConfigDirDescription": "覆寫 OpenClaw 設定目錄 (openclaw.json)。",
     "hermesConfigDir": "Hermes 設定目錄",
     "hermesConfigDirDescription": "覆寫 Hermes 設定目錄 (config.yaml)。",
+    "windsurfUserDataDir": "Windsurf 使用者資料目錄",
+    "windsurfSkillsDir": "Windsurf Skills 目錄",
+    "windsurfMcpDir": "Windsurf MCP 目錄",
+    "windsurfRulesDir": "Windsurf Rules 目錄",
     "browsePlaceholderClaude": "例如：/home/<您的帳號>/.claude",
     "browsePlaceholderCodex": "例如：/home/<您的帳號>/.codex",
     "browsePlaceholderGemini": "例如：/home/<您的帳號>/.gemini",
@@ -2289,6 +2293,10 @@
       "stopped": "未執行",
       "pathMissing": "尚未偵測到 Windsurf/Devin 可執行檔"
     },
+    "settings": {
+      "appPath": "安裝目錄 / 可執行檔",
+      "userDataDir": "使用者資料目錄"
+    },
     "actions": {
       "detect": "重新偵測",
       "importLocal": "匯入本機帳號",
@@ -2303,7 +2311,8 @@
       "deleted": "Windsurf 帳號已刪除",
       "switched": "已切換並重新啟動 Windsurf",
       "switchedWithWarning": "帳號已切換，但 Windsurf 無法自動啟動：{{warning}}",
-      "pathDetected": "已偵測到 Windsurf：{{path}}"
+      "pathDetected": "已偵測到 Windsurf：{{path}}",
+      "locationSaved": "Windsurf 路徑已儲存"
     },
     "addToken": {
       "title": "新增 Windsurf Token",

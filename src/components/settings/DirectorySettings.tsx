@@ -3,11 +3,10 @@ import { FolderSearch, Undo2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
-import type { AppId } from "@/lib/api";
-import type { ResolvedDirectories } from "@/hooks/useSettings";
-
-type DirectoryAppId = Exclude<AppId, "claude-desktop" | "windsurf">;
-
+import type {
+  DirectoryAppId,
+  ResolvedDirectories,
+} from "@/hooks/useDirectorySettings";
 interface DirectorySettingsProps {
   appConfigDir?: string;
   resolvedDirs: ResolvedDirectories;
@@ -21,6 +20,10 @@ interface DirectorySettingsProps {
   opencodeDir?: string;
   openclawDir?: string;
   hermesDir?: string;
+  windsurfUserDataDir?: string;
+  windsurfSkillsDir?: string;
+  windsurfMcpDir?: string;
+  windsurfRulesDir?: string;
   onDirectoryChange: (app: DirectoryAppId, value?: string) => void;
   onBrowseDirectory: (app: DirectoryAppId) => Promise<void>;
   onResetDirectory: (app: DirectoryAppId) => Promise<void>;
@@ -39,6 +42,10 @@ export function DirectorySettings({
   opencodeDir,
   openclawDir,
   hermesDir,
+  windsurfUserDataDir,
+  windsurfSkillsDir,
+  windsurfMcpDir,
+  windsurfRulesDir,
   onDirectoryChange,
   onBrowseDirectory,
   onResetDirectory,
@@ -170,6 +177,53 @@ export function DirectorySettings({
           onChange={(val) => onDirectoryChange("hermes", val)}
           onBrowse={() => onBrowseDirectory("hermes")}
           onReset={() => onResetDirectory("hermes")}
+        />
+        <DirectoryInput
+          label={t("settings.windsurfUserDataDir", {
+            defaultValue: "Windsurf 用户数据目录",
+          })}
+          value={windsurfUserDataDir}
+          resolvedValue={resolvedDirs.windsurfUserData}
+          placeholder="%APPDATA%/Devin"
+          onChange={(val) => onDirectoryChange("windsurf", val)}
+          onBrowse={() => onBrowseDirectory("windsurf")}
+          onReset={() => onResetDirectory("windsurf")}
+        />
+
+        <DirectoryInput
+          label={t("settings.windsurfSkillsDir", {
+            defaultValue: "Windsurf Skills 目录",
+          })}
+          value={windsurfSkillsDir}
+          resolvedValue={resolvedDirs.windsurfSkills}
+          placeholder="~/.codeium/windsurf/skills"
+          onChange={(val) => onDirectoryChange("windsurfSkills", val)}
+          onBrowse={() => onBrowseDirectory("windsurfSkills")}
+          onReset={() => onResetDirectory("windsurfSkills")}
+        />
+
+        <DirectoryInput
+          label={t("settings.windsurfMcpDir", {
+            defaultValue: "Windsurf MCP 目录",
+          })}
+          value={windsurfMcpDir}
+          resolvedValue={resolvedDirs.windsurfMcp}
+          placeholder="%APPDATA%/devin"
+          onChange={(val) => onDirectoryChange("windsurfMcp", val)}
+          onBrowse={() => onBrowseDirectory("windsurfMcp")}
+          onReset={() => onResetDirectory("windsurfMcp")}
+        />
+
+        <DirectoryInput
+          label={t("settings.windsurfRulesDir", {
+            defaultValue: "Windsurf Rules 目录",
+          })}
+          value={windsurfRulesDir}
+          resolvedValue={resolvedDirs.windsurfRules}
+          placeholder="~/.codeium/windsurf/memories"
+          onChange={(val) => onDirectoryChange("windsurfRules", val)}
+          onBrowse={() => onBrowseDirectory("windsurfRules")}
+          onReset={() => onResetDirectory("windsurfRules")}
         />
       </section>
     </div>

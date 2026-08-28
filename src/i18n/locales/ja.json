@@ -772,6 +772,10 @@
     "openclawConfigDirDescription": "OpenClaw の設定ディレクトリ（openclaw.json）を上書きします。",
     "hermesConfigDir": "Hermes 設定ディレクトリ",
     "hermesConfigDirDescription": "Hermes の設定ディレクトリ（config.yaml）を上書きします。",
+    "windsurfUserDataDir": "Windsurf ユーザーデータディレクトリ",
+    "windsurfSkillsDir": "Windsurf Skills ディレクトリ",
+    "windsurfMcpDir": "Windsurf MCP ディレクトリ",
+    "windsurfRulesDir": "Windsurf Rules ディレクトリ",
     "browsePlaceholderClaude": "例: /home/<your-username>/.claude",
     "browsePlaceholderCodex": "例: /home/<your-username>/.codex",
     "browsePlaceholderGemini": "例: /home/<your-username>/.gemini",
@@ -2288,6 +2292,10 @@
       "stopped": "停止中",
       "pathMissing": "Windsurf/Devin 実行ファイルが見つかりません"
     },
+    "settings": {
+      "appPath": "インストール先 / 実行ファイル",
+      "userDataDir": "ユーザーデータディレクトリ"
+    },
     "actions": {
       "detect": "再検出",
       "importLocal": "ローカルアカウントをインポート",
@@ -2302,7 +2310,8 @@
       "deleted": "Windsurf アカウントを削除しました",
       "switched": "Windsurf を切り替えて再起動しました",
       "switchedWithWarning": "アカウントを切り替えましたが、Windsurf を起動できませんでした: {{warning}}",
-      "pathDetected": "Windsurf を検出しました: {{path}}"
+      "pathDetected": "Windsurf を検出しました: {{path}}",
+      "locationSaved": "Windsurf のパスを保存しました"
     },
     "addToken": {
       "title": "Windsurf トークンを追加",

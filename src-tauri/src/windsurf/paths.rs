@@ -11,6 +11,10 @@ pub fn user_data_candidates() -> Result<Vec<PathBuf>, AppError> {
         return Ok(vec![path]);
     }
 
+    default_user_data_candidates()
+}
+
+pub fn default_user_data_candidates() -> Result<Vec<PathBuf>, AppError> {
     let base = dirs::config_dir().ok_or_else(|| {
         AppError::localized(
             "config_dir_not_found",
@@ -22,7 +26,20 @@ pub fn user_data_candidates() -> Result<Vec<PathBuf>, AppError> {
 }
 
 pub fn user_data_dir() -> Result<PathBuf, AppError> {
-    let candidates = user_data_candidates()?;
+    if crate::settings::get_windsurf_user_data_dir().is_some() {
+        return user_data_candidates().map(|candidates| {
+            candidates
+                .into_iter()
+                .next()
+                .unwrap_or_else(|| PathBuf::from("Windsurf"))
+        });
+    }
+
+    default_user_data_dir()
+}
+
+pub fn default_user_data_dir() -> Result<PathBuf, AppError> {
+    let candidates = default_user_data_candidates()?;
     Ok(candidates
         .iter()
         .max_by_key(|path| user_data_score(path))
@@ -30,8 +47,34 @@ pub fn user_data_dir() -> Result<PathBuf, AppError> {
         .unwrap_or_else(|| dirs::config_dir().unwrap_or_default().join("Windsurf")))
 }
 
-pub fn state_db_under(user_data_dir: &Path) -> PathBuf {
-    user_data_dir
+pub fn skills_dir() -> Result<PathBuf, AppError> {
+    Ok(crate::settings::get_windsurf_skills_dir().unwrap_or(default_skills_dir()))
+}
+
+pub fn default_skills_dir() -> PathBuf {
+    crate::config::get_home_dir()
+        .join(".codeium")
+        .join("windsurf")
+        .join("skills")
+}
+
+pub fn rules_path() -> Result<PathBuf, AppError> {
+    Ok(rules_dir()?.join("global_rules.md"))
+}
+
+pub fn rules_dir() -> Result<PathBuf, AppError> {
+    Ok(crate::settings::get_windsurf_rules_dir().unwrap_or_else(default_rules_dir))
+}
+
+pub fn default_rules_dir() -> PathBuf {
+    crate::config::get_home_dir()
+        .join(".codeium")
+        .join("windsurf")
+        .join("memories")
+}
+
+pub fn state_db_under(profile_dir: &Path) -> PathBuf {
+    profile_dir
         .join("User")
         .join("globalStorage")
         .join("state.vscdb")
@@ -39,30 +82,6 @@ pub fn state_db_under(user_data_dir: &Path) -> PathBuf {
 
 pub fn state_db_path() -> Result<PathBuf, AppError> {
     Ok(state_db_under(&user_data_dir()?))
-}
-
-pub fn rules_path() -> Result<PathBuf, AppError> {
-    dirs::home_dir()
-        .map(|home| {
-            home.join(".codeium")
-                .join("windsurf")
-                .join("memories")
-                .join("global_rules.md")
-        })
-        .ok_or_else(|| {
-            AppError::localized(
-                "home_dir_not_found",
-                "无法确定 Windsurf Rules 目录：用户主目录不存在",
-                "Cannot determine Windsurf Rules directory: user home not found",
-            )
-        })
-}
-
-pub fn rules_dir() -> Result<PathBuf, AppError> {
-    rules_path()?
-        .parent()
-        .map(PathBuf::from)
-        .ok_or_else(|| AppError::Config("Invalid Windsurf Rules path".to_string()))
 }
 
 fn user_data_score(path: &Path) -> i32 {
