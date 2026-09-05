@@ -216,6 +216,14 @@ impl McpService {
 
         let mut failures: Vec<String> = Vec::new();
         for app in AppType::all() {
+            if matches!(app, AppType::Windsurf)
+                && mcp::get_windsurf_mcp_config_path().is_err()
+            {
+                log::debug!(
+                    "Windsurf MCP config directory is unavailable; skipping bulk projection"
+                );
+                continue;
+            }
             if let Err(err) = Self::project_servers_to_app(state, &servers, &app) {
                 log::warn!("同步 MCP 到 {app:?} 失败: {err}");
                 failures.push(format!("{}: {err}", app.as_str()));
