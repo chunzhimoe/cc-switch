@@ -21,6 +21,18 @@ pub fn default_api_server_url() -> &'static str {
     DEFAULT_API_SERVER_URL
 }
 
+pub fn validate_profile_encryption(profile_dir: &Path) -> Result<(), AppError> {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = get_windows_encryption_key(profile_dir)?;
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = profile_dir;
+    }
+    Ok(())
+}
+
 pub fn write_windsurf_auth_data(
     conn: &Connection,
     profile_dir: &Path,
@@ -217,37 +229,25 @@ fn encode_encrypted_buffer_json(
 }
 
 #[cfg(target_os = "windows")]
-fn encrypt_secret_payload(
-    plaintext: &[u8],
-    _preferred_prefix: Option<&str>,
-    profile_dir: &Path,
-) -> Result<Vec<u8>, AppError> {
-    use aes_gcm::aead::generic_array::GenericArray;
-    use aes_gcm::aead::{Aead, AeadCore, OsRng};
-    use aes_gcm::{Aes256Gcm, KeyInit};
-    use base64::{engine::general_purpose, Engine as _};
+fn get_local_state_path(profile_dir: &Path) -> Result<std::path::PathBuf, AppError> {
+    let path = profile_dir.join("Local State");
+    if path.is_file() {
+        Ok(path)
+    } else {
+        Err(AppError::localized(
+            "windsurf.windows.local_state_missing",
+            format!("未找到 Windsurf Local State: {}", path.display()),
+            format!("Windsurf Local State was not found: {}", path.display()),
+        ))
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn dpapi_decrypt(protected: &[u8]) -> Result<Vec<u8>, AppError> {
     use windows::Win32::Foundation::{LocalFree, HLOCAL};
     use windows::Win32::Security::Cryptography::{CryptUnprotectData, CRYPT_INTEGER_BLOB};
 
-    let local_state_path = profile_dir.join("Local State");
-    let content = std::fs::read_to_string(&local_state_path)
-        .map_err(|error| AppError::io(&local_state_path, error))?;
-    let local_state: Value =
-        serde_json::from_str(&content).map_err(|error| AppError::json(&local_state_path, error))?;
-    let encrypted_key = local_state
-        .pointer("/os_crypt/encrypted_key")
-        .and_then(Value::as_str)
-        .ok_or_else(|| {
-            AppError::Config("Windsurf Local State is missing os_crypt.encrypted_key".to_string())
-        })?;
-    let encrypted_key = general_purpose::STANDARD
-        .decode(encrypted_key)
-        .map_err(|error| AppError::Config(format!("Invalid encrypted_key base64: {error}")))?;
-    let protected = encrypted_key.strip_prefix(b"DPAPI").ok_or_else(|| {
-        AppError::Config("Windsurf encrypted_key does not use the DPAPI prefix".to_string())
-    })?;
-
-    let key = unsafe {
+    unsafe {
         let input = CRYPT_INTEGER_BLOB {
             cbData: protected.len() as u32,
             pbData: protected.as_ptr() as *mut u8,
@@ -256,29 +256,159 @@ fn encrypt_secret_payload(
             cbData: 0,
             pbData: std::ptr::null_mut(),
         };
-        CryptUnprotectData(&input, None, None, None, None, 0, &mut output)
-            .map_err(|error| AppError::Config(format!("DPAPI decrypt failed: {error}")))?;
+        CryptUnprotectData(&input, None, None, None, None, 0, &mut output).map_err(|error| {
+            AppError::localized(
+                "windsurf.windows.dpapi_failed",
+                format!("Windsurf DPAPI 解密失败，请使用创建该配置的同一 Windows 用户运行: {error}"),
+                format!(concat!(
+                    "Windsurf DPAPI decryption failed; run as the same Windows user ",
+                    "that created this profile: {error}"
+                )),
+            )
+        })?;
+        if output.pbData.is_null() || output.cbData == 0 {
+            if !output.pbData.is_null() {
+                let _ = LocalFree(HLOCAL(output.pbData as *mut _));
+            }
+            return Err(AppError::Config(
+                "Windsurf DPAPI 解密返回空数据".to_string(),
+            ));
+        }
         let result = std::slice::from_raw_parts(output.pbData, output.cbData as usize).to_vec();
         let _ = LocalFree(HLOCAL(output.pbData as *mut _));
-        result
-    };
+        Ok(result)
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn get_windows_encryption_key(profile_dir: &Path) -> Result<Vec<u8>, AppError> {
+    use base64::{engine::general_purpose, Engine as _};
+
+    let local_state_path = get_local_state_path(profile_dir)?;
+    let content = std::fs::read_to_string(&local_state_path)
+        .map_err(|error| AppError::io(&local_state_path, error))?;
+    let local_state: Value = serde_json::from_str(&content)
+        .map_err(|error| AppError::json(&local_state_path, error))?;
+    let encrypted_key = local_state
+        .pointer("/os_crypt/encrypted_key")
+        .and_then(Value::as_str)
+        .ok_or_else(|| {
+            AppError::localized(
+                "windsurf.windows.encrypted_key_missing",
+                "Windsurf Local State 缺少 os_crypt.encrypted_key",
+                "Windsurf Local State is missing os_crypt.encrypted_key",
+            )
+        })?;
+    let encrypted_key = general_purpose::STANDARD
+        .decode(encrypted_key)
+        .map_err(|error| {
+            AppError::Config(format!("Windsurf encrypted_key Base64 解码失败: {error}"))
+        })?;
+    let protected = encrypted_key.strip_prefix(b"DPAPI").ok_or_else(|| {
+        AppError::Config("Windsurf encrypted_key 不包含 DPAPI 前缀".to_string())
+    })?;
+    if protected.is_empty() {
+        return Err(AppError::Config(
+            "Windsurf encrypted_key 的 DPAPI 数据为空".to_string(),
+        ));
+    }
+
+    let key = dpapi_decrypt(protected)?;
     if key.len() != 32 {
         return Err(AppError::Config(format!(
-            "Windsurf AES key has invalid length: {}",
+            "Windsurf AES key 长度无效: {}（期望 32）",
             key.len()
         )));
     }
+    Ok(key)
+}
 
-    let cipher = Aes256Gcm::new(GenericArray::from_slice(&key));
+#[cfg(target_os = "windows")]
+fn encrypt_windows_gcm_v10(key: &[u8], plaintext: &[u8]) -> Result<Vec<u8>, AppError> {
+    use aes_gcm::aead::generic_array::GenericArray;
+    use aes_gcm::aead::{Aead, AeadCore, OsRng};
+    use aes_gcm::{Aes256Gcm, KeyInit};
+
+    let cipher = Aes256Gcm::new(GenericArray::from_slice(key));
     let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
     let ciphertext = cipher
         .encrypt(&nonce, plaintext)
         .map_err(|error| AppError::Config(format!("AES-GCM encryption failed: {error}")))?;
-    let mut encrypted = Vec::with_capacity(3 + nonce.len() + ciphertext.len());
+    let mut encrypted = Vec::with_capacity(V10_PREFIX.len() + nonce.len() + ciphertext.len());
     encrypted.extend_from_slice(V10_PREFIX);
     encrypted.extend_from_slice(&nonce);
     encrypted.extend_from_slice(&ciphertext);
     Ok(encrypted)
+}
+
+#[cfg(target_os = "windows")]
+fn encrypt_secret_payload(
+    plaintext: &[u8],
+    preferred_prefix: Option<&str>,
+    profile_dir: &Path,
+) -> Result<Vec<u8>, AppError> {
+    if preferred_prefix == Some("v11") {
+        return Err(AppError::Config(
+            "Windsurf SecretStorage v11 writes are not supported on Windows".to_string(),
+        ));
+    }
+    let key = get_windows_encryption_key(profile_dir)?;
+    encrypt_windows_gcm_v10(&key, plaintext)
+}
+
+#[cfg(all(test, target_os = "windows"))]
+mod windows_tests {
+    use super::*;
+    use aes_gcm::aead::generic_array::GenericArray;
+    use aes_gcm::aead::{Aead, KeyInit};
+    use aes_gcm::Aes256Gcm;
+    use base64::{engine::general_purpose, Engine as _};
+    use tempfile::TempDir;
+
+    #[test]
+    fn reports_missing_local_state_before_writing() {
+        let profile = TempDir::new().expect("temp profile");
+        let error = validate_profile_encryption(profile.path()).expect_err("missing Local State");
+        assert!(error.to_string().contains("Local State"));
+    }
+
+    #[test]
+    fn rejects_encrypted_key_without_dpapi_prefix() {
+        let profile = TempDir::new().expect("temp profile");
+        let encoded = general_purpose::STANDARD.encode(b"not-dpapi");
+        std::fs::write(
+            profile.path().join("Local State"),
+            serde_json::json!({"os_crypt":{"encrypted_key":encoded}}).to_string(),
+        )
+        .expect("write Local State");
+
+        let error = validate_profile_encryption(profile.path()).expect_err("invalid prefix");
+        assert!(error.to_string().contains("DPAPI"));
+    }
+
+    #[test]
+    fn rejects_existing_v11_secret_on_windows() {
+        let profile = TempDir::new().expect("temp profile");
+        let error = encrypt_secret_payload(b"secret", Some("v11"), profile.path())
+            .expect_err("v11 should be rejected");
+        assert!(error.to_string().contains("v11"));
+    }
+
+    #[test]
+    fn encrypts_windows_secret_as_v10_aes_gcm() {
+        let key = [7u8; 32];
+        let plaintext = b"windsurf-secret";
+        let encrypted = encrypt_windows_gcm_v10(&key, plaintext).expect("encrypt secret");
+        assert!(encrypted.starts_with(V10_PREFIX));
+        assert!(encrypted.len() > V10_PREFIX.len() + 12);
+
+        let cipher = Aes256Gcm::new(GenericArray::from_slice(&key));
+        let nonce = GenericArray::from_slice(&encrypted[3..15]);
+        let decrypted = cipher
+            .decrypt(nonce, &encrypted[15..])
+            .expect("decrypt secret");
+        assert_eq!(decrypted, plaintext);
+    }
 }
 
 #[cfg(target_os = "macos")]

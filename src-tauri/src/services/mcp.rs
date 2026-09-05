@@ -96,9 +96,9 @@ impl McpService {
     }
 
     /// 将 MCP 服务器同步到所有启用的应用
-    fn sync_server_to_apps(_state: &AppState, server: &McpServer) -> Result<(), AppError> {
+    fn sync_server_to_apps(state: &AppState, server: &McpServer) -> Result<(), AppError> {
         for app in server.apps.enabled_apps() {
-            Self::sync_server_to_app_no_config(server, &app)?;
+            Self::sync_server_to_app(state, server, &app)?;
         }
 
         Ok(())
@@ -106,10 +106,14 @@ impl McpService {
 
     /// 将 MCP 服务器同步到指定应用
     fn sync_server_to_app(
-        _state: &AppState,
+        state: &AppState,
         server: &McpServer,
         app: &AppType,
     ) -> Result<(), AppError> {
+        if matches!(app, AppType::Windsurf) {
+            let servers = state.db.get_all_mcp_servers()?;
+            return Self::project_servers_to_app(state, &servers, app);
+        }
         Self::sync_server_to_app_no_config(server, app)
     }
 
@@ -174,7 +178,7 @@ impl McpService {
         Ok(())
     }
 
-    fn remove_server_from_app(_state: &AppState, id: &str, app: &AppType) -> Result<(), AppError> {
+    fn remove_server_from_app(state: &AppState, id: &str, app: &AppType) -> Result<(), AppError> {
         match app {
             AppType::Claude => mcp::remove_server_from_claude(id)?,
             AppType::ClaudeDesktop => {
@@ -194,7 +198,8 @@ impl McpService {
                 mcp::remove_server_from_hermes(id)?;
             }
             AppType::Windsurf => {
-                mcp::remove_server_from_windsurf(id)?;
+                let servers = state.db.get_all_mcp_servers()?;
+                Self::project_servers_to_app(state, &servers, app)?;
             }
         }
         Ok(())
@@ -242,6 +247,14 @@ impl McpService {
     ) -> Result<(), AppError> {
         if matches!(app, AppType::OpenClaw | AppType::ClaudeDesktop) {
             return Ok(());
+        }
+        if matches!(app, AppType::Windsurf) {
+            let enabled = servers
+                .values()
+                .filter(|server| server.apps.windsurf)
+                .map(|server| (server.id.clone(), server.server.clone()))
+                .collect::<Vec<_>>();
+            return mcp::replace_servers_in_windsurf(&enabled);
         }
 
         for server in servers.values() {

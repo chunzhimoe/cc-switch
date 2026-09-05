@@ -40,11 +40,24 @@ pub fn user_data_dir() -> Result<PathBuf, AppError> {
 
 pub fn default_user_data_dir() -> Result<PathBuf, AppError> {
     let candidates = default_user_data_candidates()?;
-    Ok(candidates
-        .iter()
-        .max_by_key(|path| user_data_score(path))
-        .cloned()
-        .unwrap_or_else(|| dirs::config_dir().unwrap_or_default().join("Windsurf")))
+    Ok(pick_preferred_user_data_dir(&candidates))
+}
+
+fn pick_preferred_user_data_dir(candidates: &[PathBuf]) -> PathBuf {
+    let Some(first) = candidates.first() else {
+        return dirs::config_dir().unwrap_or_default().join("Windsurf");
+    };
+
+    let mut best = first.clone();
+    let mut best_score = user_data_score(first);
+    for candidate in candidates.iter().skip(1) {
+        let score = user_data_score(candidate);
+        if score > best_score {
+            best = candidate.clone();
+            best_score = score;
+        }
+    }
+    best
 }
 
 pub fn skills_dir() -> Result<PathBuf, AppError> {
@@ -94,6 +107,29 @@ fn user_data_score(path: &Path) -> i32 {
         return 10;
     };
     let mut score = 10;
+    if let Ok(Some(raw)) = conn
+        .query_row(
+            "SELECT value FROM ItemTable WHERE key = ?1",
+            [EXTENSION_STATE_KEY],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+    {
+        score += 20;
+        if serde_json::from_str::<serde_json::Value>(&raw)
+            .ok()
+            .and_then(|value| {
+                value
+                    .get("codeium.installationId")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+            })
+            .is_some()
+        {
+            score += 100;
+        }
+    }
     if conn
         .query_row(
             "SELECT value FROM ItemTable WHERE key = ?1",
@@ -105,20 +141,68 @@ fn user_data_score(path: &Path) -> i32 {
         .flatten()
         .is_some()
     {
-        score += 100;
-    }
-    if conn
-        .query_row(
-            "SELECT value FROM ItemTable WHERE key = ?1",
-            [EXTENSION_STATE_KEY],
-            |row| row.get::<_, String>(0),
-        )
-        .optional()
-        .ok()
-        .flatten()
-        .is_some()
-    {
-        score += 20;
+        score += 30;
     }
     score
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    fn create_state_db(profile: &Path, extension_state: Option<&str>, has_auth: bool) {
+        let db_path = state_db_under(profile);
+        std::fs::create_dir_all(db_path.parent().expect("state db parent"))
+            .expect("create state db parent");
+        let conn = Connection::open(db_path).expect("open test state db");
+        conn.execute_batch("CREATE TABLE ItemTable (key TEXT PRIMARY KEY, value BLOB)")
+            .expect("create ItemTable");
+        if let Some(extension_state) = extension_state {
+            conn.execute(
+                "INSERT INTO ItemTable (key, value) VALUES (?1, ?2)",
+                (EXTENSION_STATE_KEY, extension_state),
+            )
+            .expect("insert extension state");
+        }
+        if has_auth {
+            conn.execute(
+                "INSERT INTO ItemTable (key, value) VALUES (?1, ?2)",
+                (AUTH_STATUS_KEY, r#"{"status":"SignedIn"}"#),
+            )
+            .expect("insert auth status");
+        }
+    }
+
+    #[test]
+    fn prefers_profile_with_stable_installation_id() {
+        let temp = TempDir::new().expect("temp dir");
+        let devin = temp.path().join("Devin");
+        let windsurf = temp.path().join("Windsurf");
+        create_state_db(&devin, Some(r#"{"theme":"dark"}"#), true);
+        create_state_db(
+            &windsurf,
+            Some(r#"{"codeium.installationId":"stable-id"}"#),
+            false,
+        );
+
+        assert_eq!(
+            pick_preferred_user_data_dir(&[devin, windsurf.clone()]),
+            windsurf
+        );
+    }
+
+    #[test]
+    fn preserves_candidate_order_when_scores_tie() {
+        let temp = TempDir::new().expect("temp dir");
+        let devin = temp.path().join("Devin");
+        let windsurf = temp.path().join("Windsurf");
+        std::fs::create_dir_all(&devin).expect("create Devin");
+        std::fs::create_dir_all(&windsurf).expect("create Windsurf");
+
+        assert_eq!(
+            pick_preferred_user_data_dir(&[devin.clone(), windsurf]),
+            devin
+        );
+    }
 }

@@ -1,5 +1,7 @@
 # 修改归档
 
+- [2026-09-05 Windsurf Windows 切号重写](./2026-09-05_Windsurf-Windows切号重写.md) — 对齐 cockpit-tools 重写 Windows 预检、进程关闭、DPAPI/SQLite 注入与回读验证，并同步 Windsurf global_rules.md 和 Devin mcp_config.json。
+
 - [2026-08-28 Windsurf v3.19.5 发布候选](./2026-08-28_Windsurf-v3.19.5发布.md) — 统一升级到 3.19.5，补齐 Windsurf Skills/目录覆盖、macOS SecretStorage 和 schema v18，并准备 v3.19.5-windsurf.1 构建。
 - [2026-08-28 Windsurf macOS SecretStorage 写入](./2026-08-28_Windsurf-macOS-SecretStorage写入.md) — 在 `auth_write.rs` 新增 macOS Keychain + PBKDF2/AES-128-CBC 分支，使 macOS 可写入 `state.vscdb` 的 SecretStorage 密文。
 - [2026-08-27 供应商级跳过 Auto 分类器](./2026-08-27_供应商跳过Auto分类器.md) — 在每个 Claude 供应商设置中增加高风险开关，按供应商投影 sandbox 与 bypassPermissions，并对称恢复 live 配置。

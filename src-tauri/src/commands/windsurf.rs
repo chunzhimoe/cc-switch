@@ -7,11 +7,11 @@ use crate::provider::Provider;
 use crate::services::ProviderService;
 use crate::store::AppState;
 use crate::windsurf::account::{
-    self, new_account_from_auth1_refresh, new_token_account, WindsurfAccount,
-    WindsurfAccountSummary,
+    self, new_account_from_auth1_refresh, new_token_account, resolve_api_key,
+    resolve_session_token, WindsurfAccount, WindsurfAccountSummary,
 };
 use crate::windsurf::browser_oauth::{self, WindsurfOAuthStartResponse};
-use crate::windsurf::{devin_oauth, local_import, paths, process};
+use crate::windsurf::{auth_write, devin_oauth, local_import, paths, process};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -164,36 +164,55 @@ pub async fn switch_windsurf_account(
         let state = app
             .try_state::<AppState>()
             .ok_or_else(|| "Application state is unavailable".to_string())?;
-        let _account = account::load_account(&account_id)
+        let account = account::load_account(&account_id)
             .map_err(|error| error.to_string())?
             .ok_or_else(|| format!("Windsurf account not found: {account_id}"))?;
-
-        // Detect while the process is still running; its executable path is the
-        // strongest discovery signal and is lost after shutdown.
-        let launch_path =
-            process::detect_and_save_launch_path(false).map_err(|error| error.to_string())?;
-        let was_running = process::is_running();
-        if was_running {
-            process::close(10).map_err(|error| error.to_string())?;
+        let access_token = resolve_session_token(&account)
+            .ok_or_else(|| "Windsurf account does not contain a usable token".to_string())?;
+        if !access_token.starts_with("devin-session-token$")
+            && resolve_api_key(&account).is_none()
+        {
+            return Err("Windsurf account does not contain an apiKey".to_string());
         }
 
-        if let Err(error) = ProviderService::switch(state.inner(), AppType::Windsurf, &account_id) {
-            if was_running && launch_path.is_some() {
-                let _ = process::start();
-            }
-            return Err(error.to_string());
+        let profile_dir = paths::user_data_dir().map_err(|error| error.to_string())?;
+        let state_db_path = paths::state_db_under(&profile_dir);
+        if !state_db_path.is_file() {
+            return Err(format!(
+                "Windsurf state.vscdb was not found: {}",
+                state_db_path.display()
+            ));
         }
+        auth_write::validate_profile_encryption(&profile_dir)
+            .map_err(|error| error.to_string())?;
 
-        if launch_path.is_none() {
+        // The executable path and encryption environment are preflighted before
+        // closing Windsurf or mutating state.vscdb. A missing path must never
+        // produce a half-finished switch.
+        let Some(launch_path) =
+            process::detect_and_save_launch_path(false).map_err(|error| error.to_string())?
+        else {
             return Ok(WindsurfSwitchResult {
                 account_id,
                 restarted: false,
                 process_id: None,
                 warning: Some("APP_PATH_NOT_FOUND:windsurf".to_string()),
             });
+        };
+
+        let was_running = process::is_running_for(&profile_dir);
+        if was_running {
+            process::close_for(&profile_dir, 10).map_err(|error| error.to_string())?;
         }
 
-        match process::start() {
+        if let Err(error) = ProviderService::switch(state.inner(), AppType::Windsurf, &account_id) {
+            if was_running {
+                let _ = process::start_with(&launch_path, &profile_dir);
+            }
+            return Err(error.to_string());
+        }
+
+        match process::start_with(&launch_path, &profile_dir) {
             Ok(process_id) => Ok(WindsurfSwitchResult {
                 account_id,
                 restarted: true,
@@ -227,8 +246,7 @@ pub fn set_windsurf_app_path(path: Option<String>) -> Result<(), String> {
         .filter(|value| !value.is_empty())
     {
         let candidate = std::path::Path::new(path);
-        let lower = path.to_ascii_lowercase();
-        if !candidate.is_file() || (!lower.contains("windsurf") && !lower.contains("devin")) {
+        if !process::is_valid_launch_path(candidate) {
             return Err("Selected file is not a Windsurf/Devin executable".to_string());
         }
     }

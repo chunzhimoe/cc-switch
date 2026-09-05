@@ -29,6 +29,34 @@ fn validate_filename(filename: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn windsurf_rules_mirror_path(filename: &str) -> Result<Option<std::path::PathBuf>, String> {
+    if filename != "AGENTS.md" {
+        return Ok(None);
+    }
+    crate::windsurf::paths::rules_path()
+        .map(Some)
+        .map_err(|e| format!("Failed to resolve Windsurf global_rules.md: {e}"))
+}
+
+fn capture_text_file(path: &std::path::Path) -> Result<Option<String>, String> {
+    if !path.exists() {
+        return Ok(None);
+    }
+    std::fs::read_to_string(path)
+        .map(Some)
+        .map_err(|e| format!("Failed to back up {} before synchronized write: {e}", path.display()))
+}
+
+fn restore_text_file(path: &std::path::Path, previous: Option<&str>) -> Result<(), String> {
+    if let Some(previous) = previous {
+        write_text_file(path, previous).map_err(|e| e.to_string())
+    } else if path.exists() {
+        std::fs::remove_file(path).map_err(|e| e.to_string())
+    } else {
+        Ok(())
+    }
+}
+
 // --- Daily memory files (memory/YYYY-MM-DD.md) ---
 
 static DAILY_MEMORY_RE: LazyLock<Regex> =
@@ -334,9 +362,37 @@ pub async fn write_workspace_file(filename: String, content: String) -> Result<(
         .map_err(|e| format!("Failed to create workspace directory: {e}"))?;
 
     let path = workspace_dir.join(&filename);
+    let windsurf_rules_path = windsurf_rules_mirror_path(&filename)?;
+    let previous_workspace = if windsurf_rules_path.is_some() {
+        capture_text_file(&path)?
+    } else {
+        None
+    };
 
     write_text_file(&path, &content)
-        .map_err(|e| format!("Failed to write workspace file {filename}: {e}"))
+        .map_err(|e| format!("Failed to write workspace file {filename}: {e}"))?;
+
+    if let Some(windsurf_rules_path) = windsurf_rules_path {
+        if let Err(error) = write_text_file(&windsurf_rules_path, &content) {
+            let rollback = restore_text_file(&path, previous_workspace.as_deref());
+            return Err(match rollback {
+                Ok(()) => format!(
+                    "Failed to mirror Windsurf rules to {}; AGENTS.md was rolled back: {error}",
+                    windsurf_rules_path.display()
+                ),
+                Err(rollback_error) => format!(
+                    concat!(
+                        "Failed to mirror Windsurf rules to {}; ",
+                        "AGENTS.md rollback also failed: {rollback_error}; ",
+                        "original error: {error}"
+                    ),
+                    windsurf_rules_path.display()
+                ),
+            });
+        }
+    }
+
+    Ok(())
 }
 
 /// Open the workspace or memory directory in the system file manager.
@@ -359,4 +415,23 @@ pub async fn open_workspace_directory(handle: AppHandle, subdir: String) -> Resu
         .map_err(|e| format!("Failed to open directory: {e}"))?;
 
     Ok(true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mirrors_only_agents_md_to_windsurf_rules() {
+        let path = windsurf_rules_mirror_path("AGENTS.md")
+            .expect("resolve mirror")
+            .expect("AGENTS.md should mirror");
+        assert_eq!(
+            path.file_name().and_then(|name| name.to_str()),
+            Some("global_rules.md")
+        );
+        assert!(windsurf_rules_mirror_path("SOUL.md")
+            .expect("resolve non-mirror")
+            .is_none());
+    }
 }

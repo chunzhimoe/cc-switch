@@ -43,10 +43,6 @@ pub fn get_windsurf_mcp_config_path() -> Result<PathBuf, AppError> {
         })
 }
 
-fn should_sync_windsurf_mcp(path: &std::path::Path) -> bool {
-    path.exists() || path.parent().is_some_and(std::path::Path::exists)
-}
-
 fn read_document(path: &std::path::Path) -> Result<Value, AppError> {
     if !path.exists() {
         return Ok(json!({ MCP_SERVERS_KEY: {} }));
@@ -167,16 +163,34 @@ pub fn sync_single_server_to_windsurf(
     server_spec: &Value,
 ) -> Result<(), AppError> {
     let path = get_windsurf_mcp_config_path()?;
-    if !should_sync_windsurf_mcp(&path) {
-        return Ok(());
-    }
-
     let replacement = convert_to_windsurf_format(server_spec)?;
     let mut document = read_document(&path)?;
     let servers = mcp_servers_mut(&mut document)?;
     let merged = merge_windsurf_spec(servers.get(id), &replacement);
     servers.insert(id.to_string(), merged);
     write_json_file(&path, &document)
+}
+
+pub fn replace_servers_in_windsurf(servers: &[(String, Value)]) -> Result<(), AppError> {
+    let path = get_windsurf_mcp_config_path()?;
+    let mut document = read_document(&path)?;
+    replace_document_servers(&mut document, servers)?;
+    write_json_file(&path, &document)
+}
+
+fn replace_document_servers(
+    document: &mut Value,
+    servers: &[(String, Value)],
+) -> Result<(), AppError> {
+    let replacement = servers
+        .iter()
+        .map(|(id, spec)| Ok((id.clone(), convert_to_windsurf_format(spec)?)))
+        .collect::<Result<Map<String, Value>, AppError>>()?;
+    let root = document.as_object_mut().ok_or_else(|| {
+        AppError::Config("Windsurf MCP config root must be a JSON object".to_string())
+    })?;
+    root.insert(MCP_SERVERS_KEY.to_string(), Value::Object(replacement));
+    Ok(())
 }
 
 pub fn remove_server_from_windsurf(id: &str) -> Result<(), AppError> {
@@ -276,5 +290,25 @@ mod tests {
         assert_eq!(merged["serverUrl"], "https://new.example/mcp");
         assert_eq!(merged["disabled"], true);
         assert_eq!(merged["custom"]["keep"], true);
+    }
+
+    #[test]
+    fn replaces_managed_server_map_and_preserves_other_root_fields() {
+        let mut document = json!({
+            "mcpServers": {"stale": {"command":"old"}},
+            "telemetry": {"enabled": false}
+        });
+        replace_document_servers(
+            &mut document,
+            &[(
+                "fresh".to_string(),
+                json!({"type":"stdio","command":"node","args":["server.js"]}),
+            )],
+        )
+        .expect("replace servers");
+
+        assert!(document["mcpServers"].get("stale").is_none());
+        assert_eq!(document["mcpServers"]["fresh"]["command"], "node");
+        assert_eq!(document["telemetry"]["enabled"], false);
     }
 }

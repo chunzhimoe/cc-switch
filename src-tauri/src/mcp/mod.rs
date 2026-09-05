@@ -42,5 +42,5 @@ pub use opencode::{
 };
 pub use windsurf::{
     get_windsurf_mcp_config_path, import_from_windsurf, remove_server_from_windsurf,
-    sync_single_server_to_windsurf,
+    replace_servers_in_windsurf, sync_single_server_to_windsurf,
 };
