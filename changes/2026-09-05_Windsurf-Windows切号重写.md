@@ -97,7 +97,8 @@ Windows 上的 Windsurf 多账号数据与 SecretStorage 写入已存在，但�
 ### 已执行
 
 - `git diff --check`：通过。
-- GitHub Actions 首次运行 `cargo fmt --check --manifest-path src-tauri/Cargo.toml` 时仅报告 rustfmt 排版差异；已严格按 CI 输出修正，等待下一次 CI 复验。
+- GitHub Actions 首次运行 `cargo fmt --check --manifest-path src-tauri/Cargo.toml` 时仅报告 rustfmt 排版差异；已严格按 CI 输出修正。
+- 后续 Windows 编译暴露 5 个确定错误：`concat!` 格式串无法捕获变量、未使用的 Windsurf MCP re-export、以及 profile 评分中临时 JSON 值借用逃逸；均已修复，等待下一次 CI 复验。
 - 代码差异人工复核，并针对审查发现修正：事务提交前验证、无参数 Windsurf 主进程管理、PID 重用等待逻辑、Windows v11 安全拒绝、AGENTS 镜像失败回滚。
 
 ### 未执行

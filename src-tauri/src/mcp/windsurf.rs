@@ -193,19 +193,6 @@ fn replace_document_servers(
     Ok(())
 }
 
-pub fn remove_server_from_windsurf(id: &str) -> Result<(), AppError> {
-    let Ok(path) = get_windsurf_mcp_config_path() else {
-        return Ok(());
-    };
-    if !path.exists() {
-        return Ok(());
-    }
-
-    let mut document = read_document(&path)?;
-    mcp_servers_mut(&mut document)?.remove(id);
-    write_json_file(&path, &document)
-}
-
 pub fn import_from_windsurf(config: &mut MultiAppConfig) -> Result<usize, AppError> {
     let path = get_windsurf_mcp_config_path()?;
     if !path.exists() {

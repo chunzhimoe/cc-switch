@@ -384,12 +384,10 @@ pub async fn write_workspace_file(filename: String, content: String) -> Result<(
                     windsurf_rules_path.display()
                 ),
                 Err(rollback_error) => format!(
-                    concat!(
-                        "Failed to mirror Windsurf rules to {}; ",
-                        "AGENTS.md rollback also failed: {rollback_error}; ",
-                        "original error: {error}"
-                    ),
-                    windsurf_rules_path.display()
+                    "Failed to mirror Windsurf rules to {}; AGENTS.md rollback also failed: {}; original error: {}",
+                    windsurf_rules_path.display(),
+                    rollback_error,
+                    error
                 ),
             });
         }

@@ -118,14 +118,12 @@ fn user_data_score(path: &Path) -> i32 {
         score += 20;
         if serde_json::from_str::<serde_json::Value>(&raw)
             .ok()
-            .and_then(|value| {
+            .is_some_and(|value| {
                 value
                     .get("codeium.installationId")
                     .and_then(serde_json::Value::as_str)
-                    .map(str::trim)
-                    .filter(|value| !value.is_empty())
+                    .is_some_and(|value| !value.trim().is_empty())
             })
-            .is_some()
         {
             score += 100;
         }

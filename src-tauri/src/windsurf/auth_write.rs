@@ -262,10 +262,10 @@ fn dpapi_decrypt(protected: &[u8]) -> Result<Vec<u8>, AppError> {
                 format!(
                     "Windsurf DPAPI 解密失败，请使用创建该配置的同一 Windows 用户运行: {error}"
                 ),
-                format!(concat!(
-                    "Windsurf DPAPI decryption failed; run as the same Windows user ",
-                    "that created this profile: {error}"
-                )),
+                format!(
+                    "Windsurf DPAPI decryption failed; run as the same Windows user that created this profile: {}",
+                    error
+                ),
             )
         })?;
         if output.pbData.is_null() || output.cbData == 0 {
