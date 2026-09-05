@@ -30,22 +30,12 @@ pub fn detect_and_save_launch_path(force: bool) -> Result<Option<PathBuf>, AppEr
     Ok(detected)
 }
 
-pub fn ensure_launch_path() -> Result<PathBuf, AppError> {
-    detect_and_save_launch_path(false)?
-        .ok_or_else(|| AppError::Message("APP_PATH_NOT_FOUND:windsurf".to_string()))
-}
-
 pub fn is_running() -> bool {
     !collect_main_processes().is_empty()
 }
 
 pub fn is_running_for(user_data_dir: &Path) -> bool {
     !matching_processes(user_data_dir).is_empty()
-}
-
-pub fn close(timeout_secs: u64) -> Result<(), AppError> {
-    let user_data_dir = super::paths::user_data_dir()?;
-    close_for(&user_data_dir, timeout_secs)
 }
 
 pub fn close_for(user_data_dir: &Path, timeout_secs: u64) -> Result<(), AppError> {
@@ -105,12 +95,6 @@ pub fn close_for(user_data_dir: &Path, timeout_secs: u64) -> Result<(), AppError
             ),
         ))
     }
-}
-
-pub fn start() -> Result<u32, AppError> {
-    let executable = ensure_launch_path()?;
-    let user_data_dir = super::paths::user_data_dir()?;
-    start_with(&executable, &user_data_dir)
 }
 
 pub fn start_with(executable: &Path, user_data_dir: &Path) -> Result<u32, AppError> {
