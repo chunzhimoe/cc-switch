@@ -115,5 +115,7 @@ Windows 上的 Windsurf 多账号数据与 SecretStorage 写入已存在，但�
 ## Git 状态
 
 - 开发分支：`release/windsurf-v3.19.4`
-- 用户明确要求目标分支：`main`
-- 归档生成时提交与推送尚未执行；最终 commit hash、推送结果和 CI 状态以 Git 命令实际结果为准。
+- 功能提交：`8944103d`（`fix(windsurf): rewrite Windows account switching`）
+- 推送 `origin/main`（`farion1231/cc-switch`）失败：当前账号无该上游仓库写权限，GitHub 返回 HTTP 403。
+- 经用户明确指定并授权，已将 `8944103d` 非强制推送到 `https://github.com/chunzhimoe/cc-switch.git` 的 `main`。
+- Rust 编译与测试仍需以目标仓库后续 CI 结果为准。
