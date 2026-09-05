@@ -216,9 +216,7 @@ impl McpService {
 
         let mut failures: Vec<String> = Vec::new();
         for app in AppType::all() {
-            if matches!(app, AppType::Windsurf)
-                && mcp::get_windsurf_mcp_config_path().is_err()
-            {
+            if matches!(app, AppType::Windsurf) && mcp::get_windsurf_mcp_config_path().is_err() {
                 log::debug!(
                     "Windsurf MCP config directory is unavailable; skipping bulk projection"
                 );

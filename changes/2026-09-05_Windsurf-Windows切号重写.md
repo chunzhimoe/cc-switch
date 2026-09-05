@@ -100,7 +100,8 @@ Windows 上的 Windsurf 多账号数据与 SecretStorage 写入已存在，但�
 - GitHub Actions 首次运行 `cargo fmt --check --manifest-path src-tauri/Cargo.toml` 时仅报告 rustfmt 排版差异；已严格按 CI 输出修正。
 - 后续 Windows 编译暴露 5 个确定错误：`concat!` 格式串无法捕获变量、未使用的 Windsurf MCP re-export、以及 profile 评分中临时 JSON 值借用逃逸；均已修复。
 - 严格 `-D warnings` 随后发现旧的无参数 `ensure_launch_path`、`close`、`start` 包装函数已无调用方；已删除这些被 `start_with` / `close_for` 取代的死代码。
-- Windows 测试随后发现全应用 MCP 批量同步会在测试隔离环境缺少系统配置目录时，将 Windsurf 路径解析失败升级为整体错误；已调整为仅在该批量入口跳过不可用的 Windsurf 目标。用户显式保存、启停和定向同步 Windsurf MCP 时仍严格覆盖 `%APPDATA%\\devin\\mcp_config.json` 并传播错误，等待下一次 CI 复验。
+- Windows 测试随后发现全应用 MCP 批量同步会在测试隔离环境缺少系统配置目录时，将 Windsurf 路径解析失败升级为整体错误；已调整为仅在该批量入口跳过不可用的 Windsurf 目标。用户显式保存、启停和定向同步 Windsurf MCP 时仍严格覆盖 `%APPDATA%\\devin\\mcp_config.json` 并传播错误。
+- 上述 MCP 修复的首次 CI 仅剩一处 `services/mcp.rs` 条件表达式 rustfmt 折行差异；已按 `cargo fmt --check` 输出修正，等待下一次 CI 复验。
 - 代码差异人工复核，并针对审查发现修正：事务提交前验证、无参数 Windsurf 主进程管理、PID 重用等待逻辑、Windows v11 安全拒绝、AGENTS 镜像失败回滚。
 
 ### 未执行
