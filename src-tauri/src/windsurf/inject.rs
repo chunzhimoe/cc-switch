@@ -203,7 +203,9 @@ fn verify_written_account(
                 .map(str::to_string)
         });
     if actual.as_deref() != Some(expected_api_key) {
-        return Err(verification_error("windsurfAuthStatus.apiKey does not match"));
+        return Err(verification_error(
+            "windsurfAuthStatus.apiKey does not match",
+        ));
     }
 
     verify_secret_buffer(&read_required_item(conn, SESSIONS_SECRET_KEY)?, "sessions")?;
@@ -225,11 +227,9 @@ fn verify_written_account(
 }
 
 fn read_required_item(conn: &Connection, key: &str) -> Result<String, AppError> {
-    conn.query_row(
-        "SELECT value FROM ItemTable WHERE key = ?1",
-        [key],
-        |row| row.get(0),
-    )
+    conn.query_row("SELECT value FROM ItemTable WHERE key = ?1", [key], |row| {
+        row.get(0)
+    })
     .optional()
     .map_err(|error| AppError::Database(error.to_string()))?
     .ok_or_else(|| verification_error(&format!("required ItemTable key is missing: {key}")))
@@ -248,7 +248,12 @@ fn verify_secret_buffer(raw: &str, name: &str) -> Result<(), AppError> {
         .and_then(Value::as_array)
         .ok_or_else(|| verification_error(&format!("{name} secret data is missing")))?
         .iter()
-        .map(|value| value.as_u64().filter(|byte| *byte <= 255).map(|byte| byte as u8))
+        .map(|value| {
+            value
+                .as_u64()
+                .filter(|byte| *byte <= 255)
+                .map(|byte| byte as u8)
+        })
         .collect::<Option<Vec<_>>>()
         .ok_or_else(|| verification_error(&format!("{name} secret contains invalid bytes")))?;
     if !bytes.starts_with(b"v10") {
@@ -329,8 +334,7 @@ mod tests {
         insert_item(&conn, SELECTED_AUTH_KEY, "test-user");
         insert_item(&conn, EXTENSION_STATE_KEY, r#"{"apiServerUrl":"test"}"#);
 
-        verify_written_account(&conn, "sk-ws-test", "test-user")
-            .expect("verification should pass");
+        verify_written_account(&conn, "sk-ws-test", "test-user").expect("verification should pass");
     }
 
     #[test]

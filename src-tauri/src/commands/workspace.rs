@@ -42,9 +42,12 @@ fn capture_text_file(path: &std::path::Path) -> Result<Option<String>, String> {
     if !path.exists() {
         return Ok(None);
     }
-    std::fs::read_to_string(path)
-        .map(Some)
-        .map_err(|e| format!("Failed to back up {} before synchronized write: {e}", path.display()))
+    std::fs::read_to_string(path).map(Some).map_err(|e| {
+        format!(
+            "Failed to back up {} before synchronized write: {e}",
+            path.display()
+        )
+    })
 }
 
 fn restore_text_file(path: &std::path::Path, previous: Option<&str>) -> Result<(), String> {

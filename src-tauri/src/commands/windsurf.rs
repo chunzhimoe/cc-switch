@@ -169,8 +169,7 @@ pub async fn switch_windsurf_account(
             .ok_or_else(|| format!("Windsurf account not found: {account_id}"))?;
         let access_token = resolve_session_token(&account)
             .ok_or_else(|| "Windsurf account does not contain a usable token".to_string())?;
-        if !access_token.starts_with("devin-session-token$")
-            && resolve_api_key(&account).is_none()
+        if !access_token.starts_with("devin-session-token$") && resolve_api_key(&account).is_none()
         {
             return Err("Windsurf account does not contain an apiKey".to_string());
         }
@@ -183,8 +182,7 @@ pub async fn switch_windsurf_account(
                 state_db_path.display()
             ));
         }
-        auth_write::validate_profile_encryption(&profile_dir)
-            .map_err(|error| error.to_string())?;
+        auth_write::validate_profile_encryption(&profile_dir).map_err(|error| error.to_string())?;
 
         // The executable path and encryption environment are preflighted before
         // closing Windsurf or mutating state.vscdb. A missing path must never

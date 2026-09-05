@@ -259,7 +259,9 @@ fn dpapi_decrypt(protected: &[u8]) -> Result<Vec<u8>, AppError> {
         CryptUnprotectData(&input, None, None, None, None, 0, &mut output).map_err(|error| {
             AppError::localized(
                 "windsurf.windows.dpapi_failed",
-                format!("Windsurf DPAPI 解密失败，请使用创建该配置的同一 Windows 用户运行: {error}"),
+                format!(
+                    "Windsurf DPAPI 解密失败，请使用创建该配置的同一 Windows 用户运行: {error}"
+                ),
                 format!(concat!(
                     "Windsurf DPAPI decryption failed; run as the same Windows user ",
                     "that created this profile: {error}"
@@ -287,8 +289,8 @@ fn get_windows_encryption_key(profile_dir: &Path) -> Result<Vec<u8>, AppError> {
     let local_state_path = get_local_state_path(profile_dir)?;
     let content = std::fs::read_to_string(&local_state_path)
         .map_err(|error| AppError::io(&local_state_path, error))?;
-    let local_state: Value = serde_json::from_str(&content)
-        .map_err(|error| AppError::json(&local_state_path, error))?;
+    let local_state: Value =
+        serde_json::from_str(&content).map_err(|error| AppError::json(&local_state_path, error))?;
     let encrypted_key = local_state
         .pointer("/os_crypt/encrypted_key")
         .and_then(Value::as_str)
@@ -304,9 +306,9 @@ fn get_windows_encryption_key(profile_dir: &Path) -> Result<Vec<u8>, AppError> {
         .map_err(|error| {
             AppError::Config(format!("Windsurf encrypted_key Base64 解码失败: {error}"))
         })?;
-    let protected = encrypted_key.strip_prefix(b"DPAPI").ok_or_else(|| {
-        AppError::Config("Windsurf encrypted_key 不包含 DPAPI 前缀".to_string())
-    })?;
+    let protected = encrypted_key
+        .strip_prefix(b"DPAPI")
+        .ok_or_else(|| AppError::Config("Windsurf encrypted_key 不包含 DPAPI 前缀".to_string()))?;
     if protected.is_empty() {
         return Err(AppError::Config(
             "Windsurf encrypted_key 的 DPAPI 数据为空".to_string(),

@@ -69,10 +69,7 @@ pub fn close_for(user_data_dir: &Path, timeout_secs: u64) -> Result<(), AppError
     for pid in &pids {
         force_close(*pid);
     }
-    if wait_for_profile_exit(
-        user_data_dir,
-        Duration::from_secs(timeout_secs.min(10)),
-    ) {
+    if wait_for_profile_exit(user_data_dir, Duration::from_secs(timeout_secs.min(10))) {
         return Ok(());
     }
 
@@ -352,9 +349,7 @@ fn force_close(pid: u32) {
     }
     #[cfg(not(target_os = "windows"))]
     {
-        let _ = Command::new("kill")
-            .args(["-9", &pid.to_string()])
-            .status();
+        let _ = Command::new("kill").args(["-9", &pid.to_string()]).status();
     }
 }
 
@@ -439,9 +434,7 @@ mod tests {
             ))
         );
         assert_eq!(
-            extract_user_data_dir(&[OsString::from(
-                "--user-data-dir=\"C:\\Profiles\\Devin\""
-            )]),
+            extract_user_data_dir(&[OsString::from("--user-data-dir=\"C:\\Profiles\\Devin\"")]),
             Some(PathBuf::from("C:\\Profiles\\Devin"))
         );
     }
