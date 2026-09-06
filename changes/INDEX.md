@@ -1,5 +1,6 @@
 # 修改归档
 
+- [2026-09-06 Windsurf macOS 切号与重启修复](./2026-09-06_Windsurf-macOS切号与重启修复.md) — 修复 Electron 漏检、关闭前置、LaunchServices 重启与 restarted:false 误报，增加原生 macOS CI 分支触发和回归测试。
 - [2026-09-05 Windsurf Windows 切号重写](./2026-09-05_Windsurf-Windows切号重写.md) — 对齐 cockpit-tools 重写 Windows 预检、进程关闭、DPAPI/SQLite 注入与回读验证，并同步 Windsurf global_rules.md 和 Devin mcp_config.json。
 
 - [2026-08-28 Windsurf v3.19.5 发布候选](./2026-08-28_Windsurf-v3.19.5发布.md) — 统一升级到 3.19.5，补齐 Windsurf Skills/目录覆盖、macOS SecretStorage 和 schema v18，并准备 v3.19.5-windsurf.1 构建。

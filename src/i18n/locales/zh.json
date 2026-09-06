@@ -2308,8 +2308,9 @@
       "imported": "已导入 Windsurf 账号：{{label}}",
       "added": "Windsurf 账号已添加",
       "deleted": "Windsurf 账号已删除",
-      "switched": "已切换并重启 Windsurf",
-      "switchedWithWarning": "账号已切换，但 Windsurf 未能自动启动：{{warning}}",
+      "switched": "登录态已写入，Windsurf 已启动",
+      "switchedWithWarning": "登录态已写入，但 Windsurf 未能自动启动：{{warning}}",
+      "restartUnconfirmed": "未确认 Windsurf 已启动，请手动打开并检查账号",
       "pathDetected": "已检测到 Windsurf：{{path}}",
       "locationSaved": "Windsurf 路径已保存"
     },

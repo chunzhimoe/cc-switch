@@ -182,51 +182,67 @@ pub async fn switch_windsurf_account(
                 state_db_path.display()
             ));
         }
+        // Preflight before closing Windsurf or mutating state.vscdb. A failure
+        // here is not a completed account switch, even with a launch warning.
+        let launch_path = process::detect_and_save_launch_path(false)
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| "APP_PATH_NOT_FOUND:windsurf".to_string())?;
+        process::validate_launch_profile(&launch_path, &profile_dir)
+            .map_err(|error| error.to_string())?;
         auth_write::validate_profile_encryption(&profile_dir).map_err(|error| error.to_string())?;
 
-        // The executable path and encryption environment are preflighted before
-        // closing Windsurf or mutating state.vscdb. A missing path must never
-        // produce a half-finished switch.
-        let Some(launch_path) =
-            process::detect_and_save_launch_path(false).map_err(|error| error.to_string())?
-        else {
-            return Ok(WindsurfSwitchResult {
-                account_id,
-                restarted: false,
-                process_id: None,
-                warning: Some("APP_PATH_NOT_FOUND:windsurf".to_string()),
-            });
-        };
-
         let was_running = process::is_running_for(&profile_dir);
-        if was_running {
-            process::close_for(&profile_dir, 10).map_err(|error| error.to_string())?;
-        }
-
-        if let Err(error) = ProviderService::switch(state.inner(), AppType::Windsurf, &account_id) {
-            if was_running {
-                let _ = process::start_with(&launch_path, &profile_dir);
-            }
-            return Err(error.to_string());
-        }
-
-        match process::start_with(&launch_path, &profile_dir) {
-            Ok(process_id) => Ok(WindsurfSwitchResult {
-                account_id,
-                restarted: true,
-                process_id: Some(process_id),
-                warning: None,
-            }),
-            Err(error) => Ok(WindsurfSwitchResult {
-                account_id,
-                restarted: false,
-                process_id: None,
-                warning: Some(error.to_string()),
-            }),
-        }
+        switch_with_restart(
+            &account_id,
+            was_running,
+            || process::close_for(&profile_dir, 10).map_err(|error| error.to_string()),
+            || {
+                ProviderService::switch(state.inner(), AppType::Windsurf, &account_id)
+                    .map(|_| ())
+                    .map_err(|error| error.to_string())
+            },
+            || process::start_with(&launch_path, &profile_dir).map_err(|error| error.to_string()),
+        )
     })
     .await
     .map_err(|error| format!("Windsurf switch task failed: {error}"))?
+}
+
+fn switch_with_restart(
+    account_id: &str,
+    was_running: bool,
+    close: impl FnOnce() -> Result<(), String>,
+    write: impl FnOnce() -> Result<(), String>,
+    mut start: impl FnMut() -> Result<u32, String>,
+) -> Result<WindsurfSwitchResult, String> {
+    // Always rescan and confirm shutdown, even if the earlier snapshot was empty.
+    close()?;
+    if let Err(error) = write() {
+        if was_running {
+            if let Err(restart_error) = start() {
+                log::warn!("Windsurf recovery launch failed after switch failure: {restart_error}");
+                return Err(format!(
+                    "{error}; Windsurf could not be restarted after the failed switch: {restart_error}"
+                ));
+            }
+        }
+        return Err(error);
+    }
+
+    match start() {
+        Ok(process_id) => Ok(WindsurfSwitchResult {
+            account_id: account_id.to_string(),
+            restarted: true,
+            process_id: Some(process_id),
+            warning: None,
+        }),
+        Err(error) => Ok(WindsurfSwitchResult {
+            account_id: account_id.to_string(),
+            restarted: false,
+            process_id: None,
+            warning: Some(error),
+        }),
+    }
 }
 
 #[tauri::command]
@@ -245,7 +261,9 @@ pub fn set_windsurf_app_path(path: Option<String>) -> Result<(), String> {
     {
         let candidate = std::path::Path::new(path);
         if !process::is_valid_launch_path(candidate) {
-            return Err("Selected file is not a Windsurf/Devin executable".to_string());
+            return Err(
+                "Selected path is not a Windsurf/Devin executable or app bundle".to_string(),
+            );
         }
     }
     crate::settings::set_windsurf_app_path(path.as_deref()).map_err(|error| error.to_string())
@@ -301,4 +319,111 @@ fn save_provider_pointer(
     state
         .db
         .save_provider(AppType::Windsurf.as_str(), &provider)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::RefCell;
+
+    #[test]
+    fn switch_closes_before_writing_even_if_initially_not_running() {
+        let events = RefCell::new(Vec::new());
+        let result = switch_with_restart(
+            "account-b",
+            false,
+            || {
+                events.borrow_mut().push("close");
+                Ok(())
+            },
+            || {
+                events.borrow_mut().push("write");
+                Ok(())
+            },
+            || {
+                events.borrow_mut().push("start");
+                Ok(42)
+            },
+        )
+        .expect("switch succeeds");
+
+        assert_eq!(*events.borrow(), vec!["close", "write", "start"]);
+        assert_eq!(result.account_id, "account-b");
+        assert!(result.restarted);
+        assert_eq!(result.process_id, Some(42));
+        assert!(result.warning.is_none());
+    }
+
+    #[test]
+    fn close_failure_never_writes_or_starts() {
+        let error = switch_with_restart(
+            "account-b",
+            true,
+            || Err("still running".to_string()),
+            || panic!("must not write while the old process is running"),
+            || panic!("must not launch a second instance"),
+        )
+        .expect_err("close must fail");
+        assert_eq!(error, "still running");
+    }
+
+    #[test]
+    fn write_failure_recovers_previously_running_app_without_claiming_success() {
+        let events = RefCell::new(Vec::new());
+        let error = switch_with_restart(
+            "account-b",
+            true,
+            || Ok(()),
+            || Err("write failed".to_string()),
+            || {
+                events.borrow_mut().push("recover");
+                Ok(42)
+            },
+        )
+        .expect_err("write failure is not a completed switch");
+        assert_eq!(error, "write failed");
+        assert_eq!(*events.borrow(), vec!["recover"]);
+    }
+
+    #[test]
+    fn reports_recovery_failure_alongside_write_error() {
+        let error = switch_with_restart(
+            "account-b",
+            true,
+            || Ok(()),
+            || Err("write failed".to_string()),
+            || Err("launch failed".to_string()),
+        )
+        .expect_err("write and recovery fail");
+        assert!(error.contains("write failed"));
+        assert!(error.contains("launch failed"));
+    }
+
+    #[test]
+    fn write_failure_does_not_start_previously_stopped_app() {
+        let error = switch_with_restart(
+            "account-b",
+            false,
+            || Ok(()),
+            || Err("write failed".to_string()),
+            || panic!("previously stopped app should stay stopped"),
+        )
+        .expect_err("write fails");
+        assert_eq!(error, "write failed");
+    }
+
+    #[test]
+    fn launch_failure_after_write_is_partial_success() {
+        let result = switch_with_restart(
+            "account-b",
+            true,
+            || Ok(()),
+            || Ok(()),
+            || Err("no matching app process".to_string()),
+        )
+        .expect("auth was written");
+        assert!(!result.restarted);
+        assert!(result.process_id.is_none());
+        assert_eq!(result.warning.as_deref(), Some("no matching app process"));
+    }
 }

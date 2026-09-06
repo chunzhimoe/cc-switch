@@ -1,10 +1,28 @@
+#[cfg(any(not(target_os = "macos"), test))]
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
+#[cfg(not(target_os = "macos"))]
 use std::process::{Command, Stdio};
+#[cfg(not(target_os = "macos"))]
 use std::time::{Duration, Instant};
+#[cfg(not(target_os = "macos"))]
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 
+#[cfg(not(target_os = "macos"))]
 use crate::error::AppError;
+
+#[cfg(target_os = "macos")]
+mod macos;
+#[cfg(target_os = "macos")]
+pub use macos::{
+    close_for, detect_and_save_launch_path, ensure_stopped_for, is_running, is_running_for,
+    is_valid_launch_path, start_with, validate_launch_profile,
+};
+
+#[cfg(not(target_os = "macos"))]
+pub fn validate_launch_profile(_launch_path: &Path, _profile_dir: &Path) -> Result<(), AppError> {
+    Ok(())
+}
 
 #[derive(Clone, Debug)]
 struct WindsurfProcess {
@@ -13,6 +31,7 @@ struct WindsurfProcess {
     user_data_dir: Option<PathBuf>,
 }
 
+#[cfg(not(target_os = "macos"))]
 pub fn detect_and_save_launch_path(force: bool) -> Result<Option<PathBuf>, AppError> {
     if !force {
         if let Some(configured) = crate::settings::get_windsurf_app_path() {
@@ -30,14 +49,17 @@ pub fn detect_and_save_launch_path(force: bool) -> Result<Option<PathBuf>, AppEr
     Ok(detected)
 }
 
+#[cfg(not(target_os = "macos"))]
 pub fn is_running() -> bool {
     !collect_main_processes().is_empty()
 }
 
+#[cfg(not(target_os = "macos"))]
 pub fn is_running_for(user_data_dir: &Path) -> bool {
     !matching_processes(user_data_dir).is_empty()
 }
 
+#[cfg(not(target_os = "macos"))]
 pub fn close_for(user_data_dir: &Path, timeout_secs: u64) -> Result<(), AppError> {
     let mut pids = matching_processes(user_data_dir)
         .into_iter()
@@ -97,6 +119,7 @@ pub fn close_for(user_data_dir: &Path, timeout_secs: u64) -> Result<(), AppError
     }
 }
 
+#[cfg(not(target_os = "macos"))]
 pub fn start_with(executable: &Path, user_data_dir: &Path) -> Result<u32, AppError> {
     if !is_valid_launch_path(executable) {
         return Err(AppError::Message(format!(
@@ -129,6 +152,7 @@ pub fn start_with(executable: &Path, user_data_dir: &Path) -> Result<u32, AppErr
     })
 }
 
+#[cfg(not(target_os = "macos"))]
 fn detect_launch_path() -> Option<PathBuf> {
     for entry in collect_main_processes() {
         if let Some(path) = entry.executable {
@@ -156,17 +180,6 @@ fn detect_launch_path() -> Option<PathBuf> {
         }
     }
 
-    #[cfg(target_os = "macos")]
-    for candidate in [
-        "/Applications/Devin.app/Contents/MacOS/Devin",
-        "/Applications/Windsurf.app/Contents/MacOS/Electron",
-    ] {
-        let candidate = PathBuf::from(candidate);
-        if is_valid_launch_path(&candidate) {
-            return Some(candidate);
-        }
-    }
-
     #[cfg(target_os = "linux")]
     for candidate in [
         "/usr/bin/devin",
@@ -183,6 +196,7 @@ fn detect_launch_path() -> Option<PathBuf> {
     None
 }
 
+#[cfg(not(target_os = "macos"))]
 fn collect_main_processes() -> Vec<WindsurfProcess> {
     let mut system = System::new();
     system.refresh_processes_specifics(
@@ -230,6 +244,7 @@ fn collect_main_processes() -> Vec<WindsurfProcess> {
         .collect()
 }
 
+#[cfg(not(target_os = "macos"))]
 fn matching_processes(user_data_dir: &Path) -> Vec<WindsurfProcess> {
     let target = normalize_path_for_compare(user_data_dir);
     collect_main_processes()
@@ -238,6 +253,7 @@ fn matching_processes(user_data_dir: &Path) -> Vec<WindsurfProcess> {
         .collect()
 }
 
+#[cfg(any(not(target_os = "macos"), test))]
 fn process_matches_profile(entry: &WindsurfProcess, target: &str) -> bool {
     entry
         .user_data_dir
@@ -249,6 +265,7 @@ fn process_matches_profile(entry: &WindsurfProcess, target: &str) -> bool {
         .unwrap_or(true)
 }
 
+#[cfg(any(not(target_os = "macos"), test))]
 fn extract_user_data_dir(args: &[OsString]) -> Option<PathBuf> {
     let tokens = args
         .iter()
@@ -271,6 +288,7 @@ fn extract_user_data_dir(args: &[OsString]) -> Option<PathBuf> {
     None
 }
 
+#[cfg(any(not(target_os = "macos"), test))]
 fn parse_user_data_dir_value(raw: &str) -> Option<String> {
     let value = raw.trim().trim_matches(|ch| ch == '"' || ch == '\'');
     (!value.is_empty()).then(|| value.to_string())
@@ -299,6 +317,7 @@ fn normalize_path_for_compare(path: &Path) -> String {
     }
 }
 
+#[cfg(not(target_os = "macos"))]
 fn request_graceful_close(pid: u32) {
     #[cfg(target_os = "windows")]
     {
@@ -319,6 +338,7 @@ fn request_graceful_close(pid: u32) {
     }
 }
 
+#[cfg(not(target_os = "macos"))]
 fn force_close(pid: u32) {
     #[cfg(target_os = "windows")]
     {
@@ -337,6 +357,7 @@ fn force_close(pid: u32) {
     }
 }
 
+#[cfg(not(target_os = "macos"))]
 fn wait_for_profile_exit(user_data_dir: &Path, timeout: Duration) -> bool {
     let started = Instant::now();
     while started.elapsed() < timeout {
@@ -355,6 +376,7 @@ fn format_pid_list(pids: &[u32]) -> String {
         .join(", ")
 }
 
+#[cfg(not(target_os = "macos"))]
 pub fn is_valid_launch_path(path: &Path) -> bool {
     if !path.is_file() {
         return false;

@@ -2308,8 +2308,9 @@
       "imported": "Imported Windsurf account: {{label}}",
       "added": "Windsurf account added",
       "deleted": "Windsurf account deleted",
-      "switched": "Windsurf switched and restarted",
-      "switchedWithWarning": "Account switched, but Windsurf could not start: {{warning}}",
+      "switched": "Login state written and Windsurf started",
+      "switchedWithWarning": "Login state written, but Windsurf could not start: {{warning}}",
+      "restartUnconfirmed": "Windsurf startup was not confirmed. Open it manually and check the account.",
       "pathDetected": "Windsurf detected: {{path}}",
       "locationSaved": "Windsurf paths saved"
     },

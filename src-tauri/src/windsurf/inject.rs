@@ -71,6 +71,10 @@ pub fn inject_account(account_id: &str) -> Result<(), AppError> {
     );
 
     let profile_dir = paths::user_data_dir()?;
+    // Provider switches can also reach this writer outside the account panel.
+    // Never let a running macOS instance overwrite the injected login state.
+    #[cfg(target_os = "macos")]
+    super::process::ensure_stopped_for(&profile_dir)?;
     let db_path = ensure_state_db(&profile_dir)?;
     backup_state_db(&db_path)?;
     let conn = Connection::open(&db_path).map_err(|error| AppError::Database(error.to_string()))?;

@@ -266,17 +266,21 @@ export default function WindsurfAccountsPanel() {
   const handleSwitch = async (account: WindsurfAccountSummary) => {
     try {
       const result = await actions.switchAccount.mutateAsync(account.id);
-      if (result.warning) {
+      if (!result.restarted || result.warning) {
         toast.warning(
           t("windsurf.notifications.switchedWithWarning", {
-            defaultValue: "账号已切换，但 Windsurf 未能自动启动：{{warning}}",
-            warning: result.warning,
+            defaultValue: "登录态已写入，但 Windsurf 未能自动启动：{{warning}}",
+            warning:
+              result.warning ||
+              t("windsurf.notifications.restartUnconfirmed", {
+                defaultValue: "未确认 Windsurf 已启动，请手动打开并检查账号",
+              }),
           }),
         );
       } else {
         toast.success(
           t("windsurf.notifications.switched", {
-            defaultValue: "已切换并重启 Windsurf",
+            defaultValue: "登录态已写入，Windsurf 已启动",
           }),
         );
       }

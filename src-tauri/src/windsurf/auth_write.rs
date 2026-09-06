@@ -26,7 +26,11 @@ pub fn validate_profile_encryption(profile_dir: &Path) -> Result<(), AppError> {
     {
         let _ = get_windows_encryption_key(profile_dir)?;
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    {
+        let _ = read_macos_safe_storage_password(profile_dir)?;
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
         let _ = profile_dir;
     }
@@ -472,17 +476,42 @@ const WINDSURF_KEYCHAIN_QUERIES: [MacosKeychainQuery; 5] = [
 ];
 
 #[cfg(target_os = "macos")]
-fn macos_profile_prefers_windsurf(profile_dir: &Path) -> bool {
-    profile_dir
+fn macos_profile_prefers_windsurf(profile_dir: &Path, launch_path: Option<&Path>) -> bool {
+    let name = profile_dir
         .file_name()
         .and_then(|name| name.to_str())
-        .is_some_and(|name| name.to_ascii_lowercase().starts_with("windsurf"))
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    if name.starts_with("windsurf") {
+        return true;
+    }
+    if name.starts_with("devin") {
+        return false;
+    }
+
+    // Custom profiles have no brand in their directory name. Use the selected
+    // application, including executable paths saved by older CC Switch builds.
+    launch_path
+        .and_then(|path| {
+            path.ancestors().find_map(|ancestor| {
+                let name = ancestor.file_name()?.to_str()?;
+                if name.eq_ignore_ascii_case("Windsurf.app") {
+                    Some(true)
+                } else if name.eq_ignore_ascii_case("Devin.app") {
+                    Some(false)
+                } else {
+                    None
+                }
+            })
+        })
+        .unwrap_or(false)
 }
 
 #[cfg(target_os = "macos")]
 fn macos_keychain_queries(profile_dir: &Path) -> impl Iterator<Item = MacosKeychainQuery> + '_ {
+    let launch_path = crate::settings::get_windsurf_app_path();
     let (primary, fallback): (&[MacosKeychainQuery], &[MacosKeychainQuery]) =
-        if macos_profile_prefers_windsurf(profile_dir) {
+        if macos_profile_prefers_windsurf(profile_dir, launch_path.as_deref()) {
             (&WINDSURF_KEYCHAIN_QUERIES, &DEVIN_KEYCHAIN_QUERIES)
         } else {
             (&DEVIN_KEYCHAIN_QUERIES, &WINDSURF_KEYCHAIN_QUERIES)
@@ -631,6 +660,28 @@ mod macos_tests {
             .next()
             .expect("Devin query");
         assert_eq!(devin.service, "Devin Safe Storage");
+    }
+
+    #[test]
+    fn custom_profile_uses_selected_app_keychain_brand() {
+        let profile = Path::new("/tmp/Account Profiles/work");
+        assert!(macos_profile_prefers_windsurf(
+            profile,
+            Some(Path::new("/Applications/Windsurf.app"))
+        ));
+        assert!(macos_profile_prefers_windsurf(
+            profile,
+            Some(Path::new("/Applications/Windsurf.app/Contents/MacOS/Electron"))
+        ));
+        assert!(!macos_profile_prefers_windsurf(
+            profile,
+            Some(Path::new("/Applications/Devin.app/Contents/MacOS/Devin"))
+        ));
+        assert!(!macos_profile_prefers_windsurf(
+            Path::new("/tmp/Devin"),
+            Some(Path::new("/Applications/Windsurf.app"))
+        ));
+        assert!(macos_profile_prefers_windsurf(Path::new("/tmp/Windsurf"), None));
     }
 
     #[test]
