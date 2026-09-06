@@ -1,5 +1,6 @@
 # 修改归档
 
+- [2026-09-06 Windsurf v3.19.5-windsurf.4 发布](./2026-09-06_Windsurf-v3.19.5-windsurf.4发布.md) — 发布供应商级 `skipDangerousModePermissionPrompt` 投影、对称恢复和通用配置隔离修复。
 - [2026-09-06 跳过危险模式确认提示](./2026-09-06_跳过危险模式确认提示.md) — 供应商级 Auto 分类器跳过开关新增 `skipDangerousModePermissionPrompt=true`，并保证直连/代理投影、切走恢复和通用配置隔离对称。
 - [2026-09-06 Windsurf v3.19.5-windsurf.3 发布](./2026-09-06_Windsurf-v3.19.5-windsurf.3发布.md) — 在 macOS 切号修复与全绿 CI 之上发布 `v3.19.5-windsurf.3` 预发布标签。
 - [2026-09-06 Windsurf macOS 切号与重启修复](./2026-09-06_Windsurf-macOS切号与重启修复.md) — 修复 Electron 漏检、关闭前置、LaunchServices 重启与 restarted:false 误报，增加原生 macOS CI 分支触发和回归测试。
