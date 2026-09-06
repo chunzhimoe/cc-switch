@@ -4,6 +4,10 @@ import { describe, expect, it } from "vitest";
 import { useForm } from "react-hook-form";
 import { Form, FormField, FormItem } from "@/components/ui/form";
 import { AutoClassifierBypassField } from "@/components/providers/forms/AutoClassifierBypassField";
+import en from "@/i18n/locales/en.json";
+import ja from "@/i18n/locales/ja.json";
+import zh from "@/i18n/locales/zh.json";
+import zhTW from "@/i18n/locales/zh-TW.json";
 
 function Harness({ classifierRoutingConfigured = true }) {
   const form = useForm({ defaultValues: { bypass: false } });
@@ -28,6 +32,20 @@ function Harness({ classifierRoutingConfigured = true }) {
 }
 
 describe("AutoClassifierBypassField", () => {
+  it.each([
+    { locale: "en", messages: en },
+    { locale: "ja", messages: ja },
+    { locale: "zh", messages: zh },
+    { locale: "zh-TW", messages: zhTW },
+  ])("discloses the prompt setting in $locale", ({ messages }) => {
+    expect(messages.providerForm.skipAutoClassifierDescription).toContain(
+      "skipDangerousModePermissionPrompt=true",
+    );
+    expect(messages.providerForm.skipAutoClassifierConfirmMessage).toContain(
+      "skipDangerousModePermissionPrompt = true",
+    );
+  });
+
   it("requires destructive confirmation before enabling", () => {
     render(<Harness />);
 
@@ -36,6 +54,9 @@ describe("AutoClassifierBypassField", () => {
 
     fireEvent.click(toggle);
     expect(screen.getByText("确认跳过 Auto 分类器？")).toBeInTheDocument();
+    expect(
+      screen.getByText(/skipDangerousModePermissionPrompt = true/),
+    ).toBeInTheDocument();
     expect(toggle).not.toBeChecked();
 
     fireEvent.click(screen.getByRole("button", { name: "common.cancel" }));

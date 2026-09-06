@@ -39,7 +39,7 @@ export function AutoClassifierBypassField({
         <p className="text-xs text-muted-foreground">
           {t("providerForm.skipAutoClassifierDescription", {
             defaultValue:
-              "保存并切换到此供应商时，将 Claude Code live 配置设为 sandbox.enabled=true 与 permissions.defaultMode=bypassPermissions，直连和代理模式都会生效。",
+              "保存并切换到此供应商时，将 Claude Code live 配置设为 sandbox.enabled=true、permissions.defaultMode=bypassPermissions 与 skipDangerousModePermissionPrompt=true，直连和代理模式都会生效。",
           })}
         </p>
       </div>
@@ -84,7 +84,7 @@ export function AutoClassifierBypassField({
         })}
         message={t("providerForm.skipAutoClassifierConfirmMessage", {
           defaultValue:
-            "这会为该供应商写入以下 Claude Code live 配置：\n\npermissions.defaultMode = bypassPermissions\nsandbox.enabled = true\n\nAuto 分类器将不再逐项判断操作。该变更风险较高，并需要完全重启 Claude Code 后生效。",
+            "这会为该供应商写入以下 Claude Code live 配置：\n\npermissions.defaultMode = bypassPermissions\nsandbox.enabled = true\nskipDangerousModePermissionPrompt = true\n\nAuto 分类器将不再逐项判断操作，Claude Code 的危险模式权限确认提示也将跳过。该变更风险较高，并需要完全重启 Claude Code 后生效。",
         })}
         confirmText={t("providerForm.skipAutoClassifierConfirm", {
           defaultValue: "仍要启用",

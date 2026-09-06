@@ -33,6 +33,7 @@ const CODEX_OAUTH_CLAUDE_AUTO_COMPACT_WINDOW: &str = "372000";
 const KIMI_FOR_CODING_CONTEXT_TOKENS: &str = "262144";
 const CLAUDE_CODE_AUTO_MODE_MODEL_ENV: &str = "CLAUDE_CODE_AUTO_MODE_MODEL";
 const CLAUDE_CODE_BYPASS_PERMISSION_MODE: &str = "bypassPermissions";
+const CLAUDE_CODE_SKIP_DANGEROUS_MODE_PROMPT: &str = "skipDangerousModePermissionPrompt";
 
 /// Model env keys Claude Code may route requests through. The defaults above
 /// are calibrated against gpt-5.6's Codex catalog, so every configured model
@@ -214,6 +215,12 @@ fn apply_claude_auto_classifier_bypass(settings: &mut Value, provider: &Provider
         Value::String(CLAUDE_CODE_BYPASS_PERMISSION_MODE.to_string()),
     );
     set_claude_live_object_field(settings, provider, "sandbox", "enabled", Value::Bool(true));
+    if let Some(root) = settings.as_object_mut() {
+        root.insert(
+            CLAUDE_CODE_SKIP_DANGEROUS_MODE_PROMPT.to_string(),
+            Value::Bool(true),
+        );
+    }
 }
 
 /// Project the provider-scoped classifier selection into Claude Code's own
@@ -838,8 +845,13 @@ pub(crate) fn strip_common_config_from_live_settings(
     db: &Database,
     app_type: &AppType,
     provider: &Provider,
-    live_settings: Value,
+    mut live_settings: Value,
 ) -> Value {
+    // Restore before stripping common config: an injected value may happen to
+    // match the snippet, but must not erase a provider's explicit original.
+    if matches!(app_type, AppType::Claude) {
+        strip_injected_claude_auto_classifier_bypass(&mut live_settings, provider);
+    }
     let snippet = match db.get_config_snippet(app_type.as_str()) {
         Ok(snippet) => snippet,
         Err(err) => {
@@ -978,8 +990,8 @@ fn restore_injected_claude_live_object_field(
 }
 
 /// Reverse `apply_claude_auto_classifier_bypass` during switch-away backfill.
-/// Only the two injected leaves are restored; sibling permission/sandbox fields
-/// and live values changed by the user remain untouched.
+/// Only injected fields are restored; sibling settings and live values changed
+/// by the user remain untouched.
 fn strip_injected_claude_auto_classifier_bypass(settings: &mut Value, provider: &Provider) {
     if !provider_skips_auto_classifier(provider) {
         return;
@@ -999,6 +1011,43 @@ fn strip_injected_claude_auto_classifier_bypass(settings: &mut Value, provider: 
         "enabled",
         &Value::Bool(true),
     );
+    if let Some(root) = settings.as_object_mut() {
+        let key = CLAUDE_CODE_SKIP_DANGEROUS_MODE_PROMPT;
+        if root.get(key) == Some(&Value::Bool(true)) {
+            if let Some(stored_value) = provider.settings_config.get(key) {
+                root.insert(key.to_string(), stored_value.clone());
+            } else {
+                root.remove(key);
+            }
+        }
+    }
+}
+
+/// Remove the provider's bypass projection before learning shared preferences.
+/// Use the common-config baseline so its original values are not lost either.
+pub(super) fn prepare_claude_common_config_for_sync(
+    db: &Database,
+    provider: &Provider,
+    live_settings: &Value,
+) -> Result<Value, AppError> {
+    let mut settings = live_settings.clone();
+    if !provider_skips_auto_classifier(provider) {
+        return Ok(settings);
+    }
+
+    let snippet = db.get_config_snippet("claude")?;
+    let mut baseline = provider.clone();
+    if provider_uses_common_config(&AppType::Claude, provider, snippet.as_deref()) {
+        if let Some(snippet) = snippet.as_deref() {
+            baseline.settings_config = apply_common_config_to_settings(
+                &AppType::Claude,
+                &provider.settings_config,
+                snippet,
+            )?;
+        }
+    }
+    strip_injected_claude_auto_classifier_bypass(&mut settings, &baseline);
+    Ok(settings)
 }
 
 /// Reverse `apply_claude_auto_mode_model` during switch-away backfill. The
@@ -2531,11 +2580,13 @@ mod tests {
         let mut live =
             build_effective_settings_with_common_config(&db, &AppType::Claude, &provider)
                 .expect("build effective settings");
+        live[CLAUDE_CODE_SKIP_DANGEROUS_MODE_PROMPT] = json!(false);
         live["permissions"]["defaultMode"] = json!("plan");
         live["sandbox"]["enabled"] = json!(false);
 
         let backfilled =
             strip_common_config_from_live_settings(&db, &AppType::Claude, &provider, live);
+        assert_eq!(backfilled[CLAUDE_CODE_SKIP_DANGEROUS_MODE_PROMPT], json!(false));
         assert_eq!(backfilled["permissions"]["defaultMode"], json!("plan"));
         assert_eq!(backfilled["sandbox"]["enabled"], json!(false));
     }
@@ -2578,6 +2629,148 @@ mod tests {
             backfilled["env"][CLAUDE_CODE_AUTO_MODE_MODEL_ENV],
             json!("manual-classifier")
         );
+    }
+
+    #[test]
+    fn claude_auto_classifier_bypass_prompt_roundtrips_and_disables() {
+        let db = Database::memory().expect("create memory db");
+        for original in [None, Some(false), Some(true)] {
+            let mut provider = Provider::with_id(
+                "external-claude".to_string(),
+                "External Claude".to_string(),
+                json!({ "env": { "ANTHROPIC_BASE_URL": "https://api.example.test" } }),
+                None,
+            );
+            if let Some(value) = original {
+                provider.settings_config[CLAUDE_CODE_SKIP_DANGEROUS_MODE_PROMPT] = json!(value);
+            }
+            let stored = provider.settings_config.clone();
+            provider.meta = Some(crate::provider::ProviderMeta {
+                skip_auto_classifier: Some(true),
+                ..Default::default()
+            });
+
+            let live = build_effective_settings_with_common_config(&db, &AppType::Claude, &provider)
+                .expect("build effective settings");
+            assert_eq!(live[CLAUDE_CODE_SKIP_DANGEROUS_MODE_PROMPT], json!(true));
+            assert_eq!(provider.settings_config, stored);
+            provider.settings_config =
+                strip_common_config_from_live_settings(&db, &AppType::Claude, &provider, live);
+            assert_eq!(provider.settings_config, stored);
+
+            provider.meta.as_mut().unwrap().skip_auto_classifier = Some(false);
+            let disabled =
+                build_effective_settings_with_common_config(&db, &AppType::Claude, &provider)
+                    .expect("build disabled settings");
+            assert_eq!(disabled, stored);
+        }
+    }
+
+    #[test]
+    fn claude_auto_classifier_bypass_prompt_is_scoped_to_enabled_claude() {
+        let db = Database::memory().expect("create memory db");
+        for app_type in [AppType::Claude, AppType::Gemini] {
+            for enabled in [None, Some(false), Some(true)] {
+                let mut provider = Provider::with_id(
+                    "provider".to_string(),
+                    "Provider".to_string(),
+                    json!({}),
+                    None,
+                );
+                provider.meta = Some(crate::provider::ProviderMeta {
+                    skip_auto_classifier: enabled,
+                    ..Default::default()
+                });
+                let live = build_effective_settings_with_common_config(&db, &app_type, &provider)
+                    .expect("build effective settings");
+                let expected = if matches!(app_type, AppType::Claude) && enabled == Some(true) {
+                    Some(json!(true))
+                } else {
+                    None
+                };
+                assert_eq!(
+                    live.get(CLAUDE_CODE_SKIP_DANGEROUS_MODE_PROMPT),
+                    expected.as_ref()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn claude_auto_classifier_bypass_common_sync_restores_shared_baseline() {
+        for original in [None, Some(false), Some(true)] {
+            let db = Database::memory().expect("create memory db");
+            let mut shared = json!({
+                "permissions": { "defaultMode": "auto", "allow": ["Read"] },
+                "sandbox": { "enabled": false },
+                "theme": "light"
+            });
+            if let Some(value) = original {
+                shared[CLAUDE_CODE_SKIP_DANGEROUS_MODE_PROMPT] = json!(value);
+            }
+            db.set_config_snippet("claude", Some(shared.to_string()))
+                .expect("save common config");
+            let mut provider = Provider::with_id(
+                "external-claude".to_string(),
+                "External Claude".to_string(),
+                json!({}),
+                None,
+            );
+            provider.meta = Some(crate::provider::ProviderMeta {
+                common_config_enabled: Some(true),
+                skip_auto_classifier: Some(true),
+                ..Default::default()
+            });
+            let mut live =
+                build_effective_settings_with_common_config(&db, &AppType::Claude, &provider)
+                    .expect("build effective settings");
+            assert_eq!(live[CLAUDE_CODE_SKIP_DANGEROUS_MODE_PROMPT], json!(true));
+            live["theme"] = json!("dark");
+
+            let prepared = prepare_claude_common_config_for_sync(&db, &provider, &live)
+                .expect("prepare common settings");
+            shared["theme"] = json!("dark");
+            assert_eq!(prepared, shared);
+            let snippet =
+                super::super::ProviderService::extract_common_config_snippet_from_settings(
+                    AppType::Claude,
+                    &prepared,
+                )
+                .expect("extract common config");
+            db.set_config_snippet("claude", Some(snippet))
+                .expect("sync common config");
+
+            provider.meta.as_mut().unwrap().skip_auto_classifier = Some(false);
+            let next = build_effective_settings_with_common_config(&db, &AppType::Claude, &provider)
+                .expect("build settings without bypass");
+            assert_eq!(next, shared);
+        }
+    }
+
+    #[test]
+    fn claude_auto_classifier_bypass_backfill_restores_before_common_removal() {
+        let db = Database::memory().expect("create memory db");
+        db.set_config_snippet(
+            "claude",
+            Some(json!({ "skipDangerousModePermissionPrompt": true }).to_string()),
+        )
+        .expect("save common config");
+        let mut provider = Provider::with_id(
+            "external-claude".to_string(),
+            "External Claude".to_string(),
+            json!({ "skipDangerousModePermissionPrompt": false }),
+            None,
+        );
+        provider.meta = Some(crate::provider::ProviderMeta {
+            common_config_enabled: Some(true),
+            skip_auto_classifier: Some(true),
+            ..Default::default()
+        });
+        let live = build_effective_settings_with_common_config(&db, &AppType::Claude, &provider)
+            .expect("build effective settings");
+        let backfilled =
+            strip_common_config_from_live_settings(&db, &AppType::Claude, &provider, live);
+        assert_eq!(backfilled, provider.settings_config);
     }
 
     #[test]

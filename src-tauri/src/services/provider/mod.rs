@@ -3438,10 +3438,14 @@ impl ProviderService {
             }
         }
 
-        let new_snippet = match Self::extract_common_config_snippet_from_settings(
-            app_type.clone(),
-            live_config,
-        ) {
+        let common_settings = if matches!(app_type, AppType::Claude) {
+            live::prepare_claude_common_config_for_sync(state.db.as_ref(), provider, live_config)
+        } else {
+            Ok(live_config.clone())
+        };
+        let new_snippet = match common_settings.and_then(|settings| {
+            Self::extract_common_config_snippet_from_settings(app_type.clone(), &settings)
+        }) {
             Ok(snippet) => snippet,
             Err(err) => {
                 log::warn!(
