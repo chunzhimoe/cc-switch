@@ -24,9 +24,13 @@ const LAUNCH_ENV_REMOVALS: &[&str] = &[
 fn bundle_root(path: &Path) -> Option<PathBuf> {
     path.ancestors()
         .find(|ancestor| {
-            ancestor.file_name().and_then(|name| name.to_str()).is_some_and(|name| {
-                name.eq_ignore_ascii_case("Windsurf.app") || name.eq_ignore_ascii_case("Devin.app")
-            })
+            ancestor
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| {
+                    name.eq_ignore_ascii_case("Windsurf.app")
+                        || name.eq_ignore_ascii_case("Devin.app")
+                })
         })
         .map(Path::to_path_buf)
 }
@@ -67,7 +71,9 @@ fn resolve_bundle(path: &Path) -> Result<PathBuf, AppError> {
         .args(["-extract", "CFBundleExecutable", "raw", "-o", "-"])
         .arg(&plist)
         .output()
-        .map_err(|error| AppError::Message(format!("Unable to inspect Windsurf app bundle: {error}")))?;
+        .map_err(|error| {
+            AppError::Message(format!("Unable to inspect Windsurf app bundle: {error}"))
+        })?;
     let name = String::from_utf8_lossy(&output.stdout);
     let name = name.trim();
     let mut components = Path::new(name).components();
@@ -145,8 +151,14 @@ fn is_main_executable(path: &Path) -> bool {
     if path.parent() != Some(bundle.join("Contents/MacOS").as_path()) {
         return false;
     }
-    let name = path.file_name().and_then(|name| name.to_str()).unwrap_or_default();
-    matches!(name.to_ascii_lowercase().as_str(), "electron" | "windsurf" | "devin")
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or_default();
+    matches!(
+        name.to_ascii_lowercase().as_str(),
+        "electron" | "windsurf" | "devin"
+    )
 }
 
 fn parse_process_line(line: &str) -> Option<WindsurfProcess> {
@@ -160,7 +172,11 @@ fn parse_process_line(line: &str) -> Option<WindsurfProcess> {
     if !is_main_executable(&executable) {
         return None;
     }
-    Some(WindsurfProcess { pid, executable: Some(executable), user_data_dir: None })
+    Some(WindsurfProcess {
+        pid,
+        executable: Some(executable),
+        user_data_dir: None,
+    })
 }
 
 fn profile_argument(command: &str) -> Result<Option<PathBuf>, AppError> {
@@ -177,18 +193,23 @@ fn profile_argument(command: &str) -> Result<Option<PathBuf>, AppError> {
         } else {
             continue;
         };
-        let value = if let Some(quote) = value.chars().next().filter(|ch| *ch == '\'' || *ch == '"') {
+        let value = if let Some(quote) = value.chars().next().filter(|ch| *ch == '\'' || *ch == '"')
+        {
             let rest = &value[quote.len_utf8()..];
-            let end = rest.find(quote).ok_or_else(|| AppError::Message(
-                "Unable to parse Windsurf user-data directory: unterminated quote".to_string()
-            ))?;
+            let end = rest.find(quote).ok_or_else(|| {
+                AppError::Message(
+                    "Unable to parse Windsurf user-data directory: unterminated quote".to_string(),
+                )
+            })?;
             &rest[..end]
         } else {
             let end = value.find(" --").unwrap_or(value.len());
             &value[..end]
         };
         if value.trim().is_empty() {
-            return Err(AppError::Message("Windsurf process has an empty user-data directory".to_string()));
+            return Err(AppError::Message(
+                "Windsurf process has an empty user-data directory".to_string(),
+            ));
         }
         return Ok(Some(PathBuf::from(value.trim())));
     }
@@ -201,9 +222,13 @@ fn collect_main_processes() -> Result<Vec<WindsurfProcess>, AppError> {
     let output = Command::new("/bin/ps")
         .args(["-axww", "-o", "pid=,stat=,comm="])
         .output()
-        .map_err(|error| AppError::Message(format!("Unable to inspect Windsurf processes: {error}")))?;
+        .map_err(|error| {
+            AppError::Message(format!("Unable to inspect Windsurf processes: {error}"))
+        })?;
     if !output.status.success() {
-        return Err(AppError::Message("Unable to inspect Windsurf processes with ps".to_string()));
+        return Err(AppError::Message(
+            "Unable to inspect Windsurf processes with ps".to_string(),
+        ));
     }
     let listing = String::from_utf8(output.stdout)
         .map_err(|_| AppError::Message("Invalid UTF-8 in macOS process listing".to_string()))?;
@@ -212,18 +237,27 @@ fn collect_main_processes() -> Result<Vec<WindsurfProcess>, AppError> {
         let output = Command::new("/bin/ps")
             .args(["-p", &entry.pid.to_string(), "-ww", "-o", "args="])
             .output()
-            .map_err(|error| AppError::Message(format!("Unable to inspect Windsurf arguments: {error}")))?;
+            .map_err(|error| {
+                AppError::Message(format!("Unable to inspect Windsurf arguments: {error}"))
+            })?;
         if !output.status.success() {
             // ps exits 1 when a process from the earlier snapshot has exited.
             if output.status.code() == Some(1) && output.stdout.is_empty() {
                 continue;
             }
-            return Err(AppError::Message(format!("Unable to inspect Windsurf PID {}", entry.pid)));
+            return Err(AppError::Message(format!(
+                "Unable to inspect Windsurf PID {}",
+                entry.pid
+            )));
         }
-        let arguments = String::from_utf8(output.stdout)
-            .map_err(|_| AppError::Message("Invalid UTF-8 in Windsurf process arguments".to_string()))?;
+        let arguments = String::from_utf8(output.stdout).map_err(|_| {
+            AppError::Message("Invalid UTF-8 in Windsurf process arguments".to_string())
+        })?;
         if arguments.trim().is_empty() {
-            return Err(AppError::Message(format!("Cannot read arguments for Windsurf PID {}", entry.pid)));
+            return Err(AppError::Message(format!(
+                "Cannot read arguments for Windsurf PID {}",
+                entry.pid
+            )));
         }
         if is_helper_process("", &arguments) {
             continue;
@@ -239,17 +273,25 @@ fn matches_profile(entry: &WindsurfProcess, profile: &Path, default_base: &Path)
     if let Some(explicit) = &entry.user_data_dir {
         return normalize_path_for_compare(explicit) == normalize_path_for_compare(profile);
     }
-    let brand = entry.executable.as_deref().and_then(bundle_root).as_deref().and_then(bundle_brand);
+    let brand = entry
+        .executable
+        .as_deref()
+        .and_then(bundle_root)
+        .as_deref()
+        .and_then(bundle_brand);
     brand.is_some_and(|brand| {
         normalize_path_for_compare(&default_base.join(brand)) == normalize_path_for_compare(profile)
     })
 }
 
 fn matching_processes(profile: &Path) -> Result<Vec<WindsurfProcess>, AppError> {
-    let base = dirs::config_dir().ok_or_else(|| AppError::Message(
-        "Cannot determine the default Windsurf user-data directory".to_string()
-    ))?;
-    Ok(collect_main_processes()?.into_iter().filter(|entry| matches_profile(entry, profile, &base)).collect())
+    let base = dirs::config_dir().ok_or_else(|| {
+        AppError::Message("Cannot determine the default Windsurf user-data directory".to_string())
+    })?;
+    Ok(collect_main_processes()?
+        .into_iter()
+        .filter(|entry| matches_profile(entry, profile, &base))
+        .collect())
 }
 
 pub fn is_running() -> bool {
@@ -280,7 +322,8 @@ pub fn ensure_stopped_for(profile: &Path) -> Result<(), AppError> {
     let pids = entries.iter().map(|entry| entry.pid).collect::<Vec<_>>();
     Err(AppError::Message(format!(
         "Windsurf is still running for {} (PIDs: {}); close it before switching accounts",
-        profile.display(), format_pid_list(&pids)
+        profile.display(),
+        format_pid_list(&pids)
     )))
 }
 
@@ -299,9 +342,15 @@ fn wait_for_exit(profile: &Path, timeout: Duration) -> Result<bool, AppError> {
 
 fn signal_processes(entries: &[WindsurfProcess], signal: &str) {
     for entry in entries {
-        match Command::new("/bin/kill").args([signal, &entry.pid.to_string()]).status() {
-            Ok(status) if status.success() => {},
-            Ok(status) => log::warn!("Windsurf PID {} signal {signal} returned {status}", entry.pid),
+        match Command::new("/bin/kill")
+            .args([signal, &entry.pid.to_string()])
+            .status()
+        {
+            Ok(status) if status.success() => {}
+            Ok(status) => log::warn!(
+                "Windsurf PID {} signal {signal} returned {status}",
+                entry.pid
+            ),
             Err(error) => log::warn!("Windsurf PID {} signal {signal} failed: {error}", entry.pid),
         }
     }
@@ -325,9 +374,16 @@ pub fn close_for(profile: &Path, timeout_secs: u64) -> Result<(), AppError> {
 
 fn launch_command(bundle: &Path, profile: &Path) -> Command {
     let mut command = Command::new("/usr/bin/open");
-    command.arg("-n").arg("-a").arg(bundle).arg("--args")
-        .arg("--user-data-dir").arg(profile).arg("--new-window")
-        .stdin(Stdio::null()).stdout(Stdio::null());
+    command
+        .arg("-n")
+        .arg("-a")
+        .arg(bundle)
+        .arg("--args")
+        .arg("--user-data-dir")
+        .arg(profile)
+        .arg("--new-window")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null());
     for variable in LAUNCH_ENV_REMOVALS {
         command.env_remove(variable);
     }
@@ -358,10 +414,17 @@ pub fn start_with(launch_path: &Path, profile: &Path) -> Result<u32, AppError> {
 
     // A regular temporary file avoids both stderr pipe backpressure and waiting
     // for a descendant to close a pipe. Only a bounded diagnostic is read back.
-    let mut diagnostics = tempfile::tempfile().map_err(|error| AppError::Message(error.to_string()))?;
-    let stderr = diagnostics.try_clone().map_err(|error| AppError::Message(error.to_string()))?;
-    let mut child = launch_command(&bundle, profile).stderr(Stdio::from(stderr)).spawn()
-        .map_err(|error| AppError::Message(format!("Failed to launch Windsurf via open: {error}")))?;
+    let mut diagnostics =
+        tempfile::tempfile().map_err(|error| AppError::Message(error.to_string()))?;
+    let stderr = diagnostics
+        .try_clone()
+        .map_err(|error| AppError::Message(error.to_string()))?;
+    let mut child = launch_command(&bundle, profile)
+        .stderr(Stdio::from(stderr))
+        .spawn()
+        .map_err(|error| {
+            AppError::Message(format!("Failed to launch Windsurf via open: {error}"))
+        })?;
     let started = Instant::now();
     let status = loop {
         match child.try_wait() {
@@ -377,16 +440,24 @@ pub fn start_with(launch_path: &Path, profile: &Path) -> Result<u32, AppError> {
                 if let Err(error) = child.kill().and_then(|_| child.wait()) {
                     log::warn!("Unable to reap Windsurf launcher: {error}");
                 }
-                return Err(AppError::Message(format!("Windsurf launcher failed: {reason}")));
+                return Err(AppError::Message(format!(
+                    "Windsurf launcher failed: {reason}"
+                )));
             }
         }
     };
     if !status.success() {
-        diagnostics.seek(SeekFrom::Start(0)).map_err(|error| AppError::Message(error.to_string()))?;
+        diagnostics
+            .seek(SeekFrom::Start(0))
+            .map_err(|error| AppError::Message(error.to_string()))?;
         let mut bytes = Vec::new();
-        diagnostics.take(8192).read_to_end(&mut bytes).map_err(|error| AppError::Message(error.to_string()))?;
+        diagnostics
+            .take(8192)
+            .read_to_end(&mut bytes)
+            .map_err(|error| AppError::Message(error.to_string()))?;
         return Err(AppError::Message(format!(
-            "Windsurf open failed ({status}): {}", String::from_utf8_lossy(&bytes).trim()
+            "Windsurf open failed ({status}): {}",
+            String::from_utf8_lossy(&bytes).trim()
         )));
     }
 
@@ -395,11 +466,24 @@ pub fn start_with(launch_path: &Path, profile: &Path) -> Result<u32, AppError> {
     let started = Instant::now();
     let mut probe = StartupProbe::default();
     while started.elapsed() < Duration::from_secs(10) {
-        let pids = collect_main_processes()?.into_iter().filter(|entry| {
-            let actual_bundle = entry.executable.as_deref().and_then(bundle_root);
-            actual_bundle.as_deref().map(normalize_path_for_compare).as_deref() == Some(target_bundle.as_str())
-                && entry.user_data_dir.as_deref().map(normalize_path_for_compare).as_deref() == Some(target_profile.as_str())
-        }).map(|entry| entry.pid).collect::<Vec<_>>();
+        let pids = collect_main_processes()?
+            .into_iter()
+            .filter(|entry| {
+                let actual_bundle = entry.executable.as_deref().and_then(bundle_root);
+                actual_bundle
+                    .as_deref()
+                    .map(normalize_path_for_compare)
+                    .as_deref()
+                    == Some(target_bundle.as_str())
+                    && entry
+                        .user_data_dir
+                        .as_deref()
+                        .map(normalize_path_for_compare)
+                        .as_deref()
+                        == Some(target_profile.as_str())
+            })
+            .map(|entry| entry.pid)
+            .collect::<Vec<_>>();
         if let Some(pid) = probe.observe(&pids, started.elapsed()) {
             return Ok(pid);
         }
@@ -418,32 +502,57 @@ mod tests {
     #[test]
     fn resolves_bundle_roots_without_truncating_spaced_paths() {
         let bundle = Path::new("/Users/Test User/Applications/Windsurf.app");
-        assert_eq!(bundle_root(&bundle.join("Contents/MacOS/Electron")), Some(bundle.to_path_buf()));
+        assert_eq!(
+            bundle_root(&bundle.join("Contents/MacOS/Electron")),
+            Some(bundle.to_path_buf())
+        );
         assert_eq!(bundle_root(bundle), Some(bundle.to_path_buf()));
-        assert!(bundle_root(Path::new("/Applications/Other.app/Contents/MacOS/Electron")).is_none());
+        assert!(
+            bundle_root(Path::new("/Applications/Other.app/Contents/MacOS/Electron")).is_none()
+        );
     }
 
     #[test]
     fn recognizes_macos_electron_but_not_other_apps_or_helpers() {
-        assert!(is_main_executable(Path::new("/Applications/Windsurf.app/Contents/MacOS/Electron")));
-        assert!(is_main_executable(Path::new("/Applications/Devin.app/Contents/MacOS/Devin")));
-        assert!(!is_main_executable(Path::new("/Applications/Other.app/Contents/MacOS/Electron")));
-        assert!(!is_main_executable(Path::new("/Applications/Windsurf.app/Contents/MacOS/Windsurf Helper")));
+        assert!(is_main_executable(Path::new(
+            "/Applications/Windsurf.app/Contents/MacOS/Electron"
+        )));
+        assert!(is_main_executable(Path::new(
+            "/Applications/Devin.app/Contents/MacOS/Devin"
+        )));
+        assert!(!is_main_executable(Path::new(
+            "/Applications/Other.app/Contents/MacOS/Electron"
+        )));
+        assert!(!is_main_executable(Path::new(
+            "/Applications/Windsurf.app/Contents/MacOS/Windsurf Helper"
+        )));
         assert!(!is_main_executable(Path::new("/Applications/Windsurf.app/Contents/Frameworks/Windsurf Helper.app/Contents/MacOS/Electron")));
     }
 
     #[test]
     fn parses_ps_executable_listing_with_spaces_and_excludes_zombies() {
-        let entry = parse_process_line("42 S /Users/测试 User/Applications/Windsurf.app/Contents/MacOS/Electron").unwrap();
+        let entry = parse_process_line(
+            "42 S /Users/测试 User/Applications/Windsurf.app/Contents/MacOS/Electron",
+        )
+        .unwrap();
         assert_eq!(entry.pid, 42);
-        assert_eq!(entry.executable, Some(PathBuf::from("/Users/测试 User/Applications/Windsurf.app/Contents/MacOS/Electron")));
-        assert!(parse_process_line("42 Z /Applications/Windsurf.app/Contents/MacOS/Electron").is_none());
+        assert_eq!(
+            entry.executable,
+            Some(PathBuf::from(
+                "/Users/测试 User/Applications/Windsurf.app/Contents/MacOS/Electron"
+            ))
+        );
+        assert!(
+            parse_process_line("42 Z /Applications/Windsurf.app/Contents/MacOS/Electron").is_none()
+        );
         assert!(parse_process_line("42 S /bin/bash").is_none());
     }
 
     #[test]
     fn parses_profile_arguments_in_both_forms() {
-        let expected = Some(PathBuf::from("/Users/Test User/Library/Application Support/Windsurf"));
+        let expected = Some(PathBuf::from(
+            "/Users/Test User/Library/Application Support/Windsurf",
+        ));
         assert_eq!(profile_argument("Electron --user-data-dir /Users/Test User/Library/Application Support/Windsurf --new-window").unwrap(), expected);
         assert_eq!(profile_argument("Electron --user-data-dir=\"/Users/Test User/Library/Application Support/Windsurf\" --new-window").unwrap(), expected);
         assert_eq!(profile_argument("Electron --new-window").unwrap(), None);
@@ -454,7 +563,8 @@ mod tests {
     #[test]
     fn implicit_profile_only_matches_its_brand_default() {
         let base = Path::new("/Users/test/Library/Application Support");
-        let mut entry = parse_process_line("42 S /Applications/Windsurf.app/Contents/MacOS/Electron").unwrap();
+        let mut entry =
+            parse_process_line("42 S /Applications/Windsurf.app/Contents/MacOS/Electron").unwrap();
         assert!(matches_profile(&entry, &base.join("Windsurf"), base));
         assert!(!matches_profile(&entry, &base.join("Devin"), base));
         assert!(!matches_profile(&entry, Path::new("/tmp/custom"), base));
@@ -465,12 +575,31 @@ mod tests {
 
     #[test]
     fn constructs_launchservices_command_and_removes_inherited_env() {
-        let command = launch_command(Path::new("/Applications/Windsurf.app"), Path::new("/tmp/用户 Profile"));
+        let command = launch_command(
+            Path::new("/Applications/Windsurf.app"),
+            Path::new("/tmp/用户 Profile"),
+        );
         assert_eq!(command.get_program(), "/usr/bin/open");
-        let args = command.get_args().map(|arg| arg.to_str().unwrap()).collect::<Vec<_>>();
-        assert_eq!(args, ["-n", "-a", "/Applications/Windsurf.app", "--args", "--user-data-dir", "/tmp/用户 Profile", "--new-window"]);
+        let args = command
+            .get_args()
+            .map(|arg| arg.to_str().unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            args,
+            [
+                "-n",
+                "-a",
+                "/Applications/Windsurf.app",
+                "--args",
+                "--user-data-dir",
+                "/tmp/用户 Profile",
+                "--new-window"
+            ]
+        );
         for variable in LAUNCH_ENV_REMOVALS {
-            assert!(command.get_envs().any(|(key, value)| key == *variable && value.is_none()));
+            assert!(command
+                .get_envs()
+                .any(|(key, value)| key == *variable && value.is_none()));
         }
         assert!(!command.get_envs().any(|(key, _)| key == "HTTPS_PROXY"));
     }

@@ -65,7 +65,8 @@ macOS 上 Windsurf 切号后无法可靠关闭/重启：旧 macOS 进程路径�
 ## Git 状态
 
 - 分支：`release/windsurf-v3.19.4`
-- 归档创建时：尚未提交/推送，Rust 格式、Clippy、测试等待本提交触发的 CI；最终状态以 Git 历史及对应 Actions run 为准。
+- 主修复提交：`d3e6601a84aa82756980ee8d53fd3a232b396e91`，已成功推送到下述 fork 同名分支。
+- 首轮 [CI 34016127022](https://github.com/chunzhimoe/cc-switch/actions/runs/34016127022)：前端通过；Rust 格式检查失败，Clippy/测试因此跳过。已根据 CI 的 26 个 rustfmt 差异块调整 `auth_write.rs` 和 `process/macos.rs` 排版（含闭包换行块及尾逗号），没有运行本地 Rust 程序；原生编译/测试结果仍待后续提交的 CI。
 - 用户已授权推送：`https://github.com/chunzhimoe/cc-switch.git`
   `HEAD:refs/heads/release/windsurf-v3.19.4`（非 main、不改 remotes、不用 force）
 

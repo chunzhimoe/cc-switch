@@ -671,7 +671,9 @@ mod macos_tests {
         ));
         assert!(macos_profile_prefers_windsurf(
             profile,
-            Some(Path::new("/Applications/Windsurf.app/Contents/MacOS/Electron"))
+            Some(Path::new(
+                "/Applications/Windsurf.app/Contents/MacOS/Electron"
+            ))
         ));
         assert!(!macos_profile_prefers_windsurf(
             profile,
@@ -681,7 +683,10 @@ mod macos_tests {
             Path::new("/tmp/Devin"),
             Some(Path::new("/Applications/Windsurf.app"))
         ));
-        assert!(macos_profile_prefers_windsurf(Path::new("/tmp/Windsurf"), None));
+        assert!(macos_profile_prefers_windsurf(
+            Path::new("/tmp/Windsurf"),
+            None
+        ));
     }
 
     #[test]
