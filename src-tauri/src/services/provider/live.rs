@@ -2586,7 +2586,10 @@ mod tests {
 
         let backfilled =
             strip_common_config_from_live_settings(&db, &AppType::Claude, &provider, live);
-        assert_eq!(backfilled[CLAUDE_CODE_SKIP_DANGEROUS_MODE_PROMPT], json!(false));
+        assert_eq!(
+            backfilled[CLAUDE_CODE_SKIP_DANGEROUS_MODE_PROMPT],
+            json!(false)
+        );
         assert_eq!(backfilled["permissions"]["defaultMode"], json!("plan"));
         assert_eq!(backfilled["sandbox"]["enabled"], json!(false));
     }
@@ -2650,8 +2653,9 @@ mod tests {
                 ..Default::default()
             });
 
-            let live = build_effective_settings_with_common_config(&db, &AppType::Claude, &provider)
-                .expect("build effective settings");
+            let live =
+                build_effective_settings_with_common_config(&db, &AppType::Claude, &provider)
+                    .expect("build effective settings");
             assert_eq!(live[CLAUDE_CODE_SKIP_DANGEROUS_MODE_PROMPT], json!(true));
             assert_eq!(provider.settings_config, stored);
             provider.settings_config =
@@ -2741,8 +2745,9 @@ mod tests {
                 .expect("sync common config");
 
             provider.meta.as_mut().unwrap().skip_auto_classifier = Some(false);
-            let next = build_effective_settings_with_common_config(&db, &AppType::Claude, &provider)
-                .expect("build settings without bypass");
+            let next =
+                build_effective_settings_with_common_config(&db, &AppType::Claude, &provider)
+                    .expect("build settings without bypass");
             assert_eq!(next, shared);
         }
     }
