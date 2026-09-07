@@ -600,10 +600,7 @@ fn merge_auth1_refresh(
         "sessionToken".to_string(),
         Value::String(refresh.session_token.clone()),
     );
-    root.insert(
-        "authMethod".to_string(),
-        Value::String("auth1".to_string()),
-    );
+    root.insert("authMethod".to_string(), Value::String("auth1".to_string()));
     root.insert(
         "accountId".to_string(),
         Value::String(refresh.account_id.clone()),
@@ -907,7 +904,11 @@ mod tests {
 
     #[tokio::test]
     async fn session_only_and_legacy_accounts_do_not_attempt_auth1_refresh() {
-        for token in ["devin-session-token$fixture", "sk-ws-fixture", "cog_fixture"] {
+        for token in [
+            "devin-session-token$fixture",
+            "sk-ws-fixture",
+            "cog_fixture",
+        ] {
             let account = new_token_account(token.to_string(), None).unwrap();
             let original = serde_json::to_value(&account).unwrap();
             let result = refresh_account_with(

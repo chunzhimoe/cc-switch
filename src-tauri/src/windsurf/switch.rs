@@ -49,9 +49,7 @@ fn provider_account_id(provider: &Provider) -> Result<&str, AppError> {
         .and_then(serde_json::Value::as_str)
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .ok_or_else(|| {
-            AppError::InvalidInput("Windsurf provider is missing accountId".to_string())
-        })
+        .ok_or_else(|| AppError::InvalidInput("Windsurf provider is missing accountId".to_string()))
 }
 
 fn same_credentials(expected: &WindsurfAccount, actual: &WindsurfAccount) -> bool {
@@ -74,9 +72,7 @@ pub(crate) fn prepare_switch(
     let provider = state
         .db
         .get_provider_by_id(provider_id, AppType::Windsurf.as_str())?
-        .ok_or_else(|| {
-            AppError::InvalidInput("Windsurf provider no longer exists".to_string())
-        })?;
+        .ok_or_else(|| AppError::InvalidInput("Windsurf provider no longer exists".to_string()))?;
     let account_id = provider_account_id(&provider)?;
     let profile_dir = paths::user_data_dir()?;
     let db_path = paths::state_db_under(&profile_dir);

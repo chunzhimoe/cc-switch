@@ -367,9 +367,7 @@ fn decrypt_secret_payload(
         #[cfg(any(target_os = "windows", test))]
         EncryptionContext::Windows(key) => decrypt_windows_gcm_v10(key, encrypted),
         #[cfg(any(target_os = "macos", test))]
-        EncryptionContext::Macos(password) => {
-            decrypt_macos_secret(encrypted, password.as_bytes())
-        }
+        EncryptionContext::Macos(password) => decrypt_macos_secret(encrypted, password.as_bytes()),
     }
 }
 
@@ -520,10 +518,7 @@ fn encrypt_windows_gcm_v10(key: &[u8], plaintext: &[u8]) -> Result<Vec<u8>, AppE
 }
 
 #[cfg(any(target_os = "windows", test))]
-fn decrypt_windows_gcm_v10(
-    key: &[u8],
-    encrypted: &[u8],
-) -> Result<Zeroizing<Vec<u8>>, AppError> {
+fn decrypt_windows_gcm_v10(key: &[u8], encrypted: &[u8]) -> Result<Zeroizing<Vec<u8>>, AppError> {
     use aes_gcm::aead::generic_array::GenericArray;
     use aes_gcm::aead::{Aead, KeyInit};
     use aes_gcm::Aes256Gcm;
@@ -750,10 +745,8 @@ fn encrypt_macos_secret(plaintext: &[u8], password: &[u8]) -> Result<Vec<u8>, Ap
     type Aes128CbcEncryptor = cbc::Encryptor<Aes128>;
 
     let key = derive_macos_safe_storage_key(password);
-    let cipher =
-        Aes128CbcEncryptor::new_from_slices(&key[..], &MACOS_SAFE_STORAGE_IV).map_err(|_| {
-            secret_format_error("Failed to initialize the macOS AES-CBC encryptor")
-        })?;
+    let cipher = Aes128CbcEncryptor::new_from_slices(&key[..], &MACOS_SAFE_STORAGE_IV)
+        .map_err(|_| secret_format_error("Failed to initialize the macOS AES-CBC encryptor"))?;
     let message_len = plaintext.len();
     let padding_len = 16 - (message_len % 16);
     let mut buffer = Zeroizing::new(plaintext.to_vec());
@@ -770,10 +763,7 @@ fn encrypt_macos_secret(plaintext: &[u8], password: &[u8]) -> Result<Vec<u8>, Ap
 }
 
 #[cfg(any(target_os = "macos", test))]
-fn decrypt_macos_secret(
-    encrypted: &[u8],
-    password: &[u8],
-) -> Result<Zeroizing<Vec<u8>>, AppError> {
+fn decrypt_macos_secret(encrypted: &[u8], password: &[u8]) -> Result<Zeroizing<Vec<u8>>, AppError> {
     use aes::Aes128;
     use cbc::cipher::block_padding::Pkcs7;
     use cbc::cipher::{BlockDecryptMut, KeyIvInit};
@@ -789,10 +779,8 @@ fn decrypt_macos_secret(
         ));
     }
     let key = derive_macos_safe_storage_key(password);
-    let cipher =
-        Aes128CbcDecryptor::new_from_slices(&key[..], &MACOS_SAFE_STORAGE_IV).map_err(|_| {
-            secret_format_error("Failed to initialize the macOS AES-CBC decryptor")
-        })?;
+    let cipher = Aes128CbcDecryptor::new_from_slices(&key[..], &MACOS_SAFE_STORAGE_IV)
+        .map_err(|_| secret_format_error("Failed to initialize the macOS AES-CBC decryptor"))?;
     let mut buffer = Zeroizing::new(ciphertext.to_vec());
     let plaintext_len = cipher
         .decrypt_padded_mut::<Pkcs7>(buffer.as_mut_slice())
@@ -813,8 +801,8 @@ mod tests {
     use std::cell::Cell;
 
     const MACOS_HELLO_FIXTURE: [u8; 19] = [
-        0x76, 0x31, 0x30, 0x95, 0x88, 0x15, 0xf4, 0x8a, 0x74, 0x22, 0x7a, 0x2a, 0x31, 0x53,
-        0x50, 0x50, 0xc6, 0x88, 0x42,
+        0x76, 0x31, 0x30, 0x95, 0x88, 0x15, 0xf4, 0x8a, 0x74, 0x22, 0x7a, 0x2a, 0x31, 0x53, 0x50,
+        0x50, 0xc6, 0x88, 0x42,
     ];
 
     #[test]
@@ -842,14 +830,10 @@ mod tests {
     #[test]
     fn buffer_parser_rejects_invalid_shape_and_bytes() {
         assert!(parse_encrypted_buffer_json(r#"{"data":[118,49,48]}"#).is_err());
-        assert!(parse_encrypted_buffer_json(
-            r#"{"type":"Buffer","data":[118,49,48,256]}"#
-        )
-        .is_err());
-        assert!(parse_encrypted_buffer_json(
-            r#"{"type":"Buffer","data":[118,49,"48"]}"#
-        )
-        .is_err());
+        assert!(
+            parse_encrypted_buffer_json(r#"{"type":"Buffer","data":[118,49,48,256]}"#).is_err()
+        );
+        assert!(parse_encrypted_buffer_json(r#"{"type":"Buffer","data":[118,49,"48"]}"#).is_err());
     }
 
     #[test]

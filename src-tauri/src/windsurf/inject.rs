@@ -276,10 +276,7 @@ fn mutate_auth_status(
     }
 }
 
-fn verify_written_account(
-    conn: &Connection,
-    prepared: &PreparedInjection,
-) -> Result<(), AppError> {
+fn verify_written_account(conn: &Connection, prepared: &PreparedInjection) -> Result<(), AppError> {
     let auth_status = read_required_item(conn, AUTH_STATUS_KEY)?;
     let auth_status = serde_json::from_str::<Value>(&auth_status)
         .map_err(|_| verification_error("windsurfAuthStatus is not valid JSON"))?;
@@ -373,9 +370,7 @@ fn verification_error(reason: &str) -> AppError {
     AppError::localized(
         "windsurf.verification_failed",
         format!("Windsurf 登录态写入后校验失败: {reason}"),
-        format!(
-            "Windsurf login-state verification failed after writing: {reason}"
-        ),
+        format!("Windsurf login-state verification failed after writing: {reason}"),
     )
 }
 
@@ -495,9 +490,8 @@ mod tests {
         let conn = Connection::open(db_path).expect("open written db");
         verify_written_account(&conn, &prepared).expect("strict verification");
         let sessions_raw = read_required_item(&conn, SESSIONS_SECRET_KEY).expect("sessions");
-        let sessions =
-            decrypt_encrypted_buffer_json(&sessions_raw, &prepared.encryption_context)
-                .expect("decrypt sessions");
+        let sessions = decrypt_encrypted_buffer_json(&sessions_raw, &prepared.encryption_context)
+            .expect("decrypt sessions");
         assert_eq!(
             serde_json::from_slice::<Value>(&sessions).expect("session json"),
             prepared.expected_sessions

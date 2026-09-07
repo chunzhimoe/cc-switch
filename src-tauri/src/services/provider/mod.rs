@@ -2965,11 +2965,7 @@ impl ProviderService {
     ///    c. Update database is_current (as default for new devices)
     ///    d. Write target provider config to live files
     ///    e. Sync MCP configuration
-    pub fn switch(
-        state: &AppState,
-        app_type: AppType,
-        id: &str,
-    ) -> Result<SwitchResult, AppError> {
+    pub fn switch(state: &AppState, app_type: AppType, id: &str) -> Result<SwitchResult, AppError> {
         if matches!(app_type, AppType::Windsurf) {
             return crate::windsurf::switch::switch_provider(state, id);
         }

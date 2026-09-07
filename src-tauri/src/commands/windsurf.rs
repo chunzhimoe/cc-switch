@@ -198,9 +198,7 @@ fn switch_with_restart(
     if let Err(error) = write() {
         if was_running {
             if let Err(restart_error) = start() {
-                log::warn!(
-                    "Windsurf recovery launch failed after switch failure: {restart_error}"
-                );
+                log::warn!("Windsurf recovery launch failed after switch failure: {restart_error}");
                 return Err(format!(
                     "{error}; Windsurf could not be restarted after the failed switch: \
                      {restart_error}"
