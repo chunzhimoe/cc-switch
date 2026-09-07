@@ -354,6 +354,8 @@ fn encrypt_secret_payload(
         EncryptionContext::Windows(key) => encrypt_windows_gcm_v10(key, plaintext),
         #[cfg(any(target_os = "macos", test))]
         EncryptionContext::Macos(password) => encrypt_macos_secret(plaintext, password.as_bytes()),
+        #[cfg(not(any(target_os = "windows", target_os = "macos", test)))]
+        _ => Err(unsupported_platform_error()),
     }
 }
 
@@ -368,6 +370,8 @@ fn decrypt_secret_payload(
         EncryptionContext::Windows(key) => decrypt_windows_gcm_v10(key, encrypted),
         #[cfg(any(target_os = "macos", test))]
         EncryptionContext::Macos(password) => decrypt_macos_secret(encrypted, password.as_bytes()),
+        #[cfg(not(any(target_os = "windows", target_os = "macos", test)))]
+        _ => Err(unsupported_platform_error()),
     }
 }
 
