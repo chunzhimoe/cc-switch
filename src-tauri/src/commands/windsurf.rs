@@ -4,14 +4,13 @@ use tauri::{AppHandle, Manager, State};
 
 use crate::app_config::AppType;
 use crate::provider::Provider;
-use crate::services::ProviderService;
 use crate::store::AppState;
 use crate::windsurf::account::{
-    self, new_account_from_auth1_refresh, new_token_account, resolve_api_key,
-    resolve_session_token, WindsurfAccount, WindsurfAccountSummary,
+    self, new_account_from_auth1_refresh, new_token_account, WindsurfAccount,
+    WindsurfAccountSummary,
 };
 use crate::windsurf::browser_oauth::{self, WindsurfOAuthStartResponse};
-use crate::windsurf::{auth_write, devin_oauth, local_import, paths, process};
+use crate::windsurf::{devin_oauth, local_import, paths, process};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -164,44 +163,23 @@ pub async fn switch_windsurf_account(
         let state = app
             .try_state::<AppState>()
             .ok_or_else(|| "Application state is unavailable".to_string())?;
-        let account = account::load_account(&account_id)
-            .map_err(|error| error.to_string())?
-            .ok_or_else(|| format!("Windsurf account not found: {account_id}"))?;
-        let access_token = resolve_session_token(&account)
-            .ok_or_else(|| "Windsurf account does not contain a usable token".to_string())?;
-        if !access_token.starts_with("devin-session-token$") && resolve_api_key(&account).is_none()
-        {
-            return Err("Windsurf account does not contain an apiKey".to_string());
-        }
-
-        let profile_dir = paths::user_data_dir().map_err(|error| error.to_string())?;
-        let state_db_path = paths::state_db_under(&profile_dir);
-        if !state_db_path.is_file() {
-            return Err(format!(
-                "Windsurf state.vscdb was not found: {}",
-                state_db_path.display()
-            ));
-        }
-        // Preflight before closing Windsurf or mutating state.vscdb. A failure
-        // here is not a completed account switch, even with a launch warning.
-        let launch_path = process::detect_and_save_launch_path(false)
-            .map_err(|error| error.to_string())?
-            .ok_or_else(|| "APP_PATH_NOT_FOUND:windsurf".to_string())?;
-        process::validate_launch_profile(&launch_path, &profile_dir)
+        let prepared = crate::windsurf::switch::prepare_switch(state.inner(), &account_id, true)
             .map_err(|error| error.to_string())?;
-        auth_write::validate_profile_encryption(&profile_dir).map_err(|error| error.to_string())?;
-
-        let was_running = process::is_running_for(&profile_dir);
         switch_with_restart(
-            &account_id,
-            was_running,
-            || process::close_for(&profile_dir, 10).map_err(|error| error.to_string()),
+            prepared.account_id(),
+            prepared.was_running(),
             || {
-                ProviderService::switch(state.inner(), AppType::Windsurf, &account_id)
+                prepared
+                    .close(state.inner())
+                    .map_err(|error| error.to_string())
+            },
+            || {
+                prepared
+                    .commit(state.inner())
                     .map(|_| ())
                     .map_err(|error| error.to_string())
             },
-            || process::start_with(&launch_path, &profile_dir).map_err(|error| error.to_string()),
+            || prepared.start().map_err(|error| error.to_string()),
         )
     })
     .await
@@ -220,9 +198,12 @@ fn switch_with_restart(
     if let Err(error) = write() {
         if was_running {
             if let Err(restart_error) = start() {
-                log::warn!("Windsurf recovery launch failed after switch failure: {restart_error}");
+                log::warn!(
+                    "Windsurf recovery launch failed after switch failure: {restart_error}"
+                );
                 return Err(format!(
-                    "{error}; Windsurf could not be restarted after the failed switch: {restart_error}"
+                    "{error}; Windsurf could not be restarted after the failed switch: \
+                     {restart_error}"
                 ));
             }
         }

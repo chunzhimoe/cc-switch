@@ -102,7 +102,7 @@ describe("WindsurfAccountsPanel switch feedback", () => {
 
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith(
-        "登录态已写入，Windsurf 已启动",
+        "会话写入已校验，Windsurf 已启动；请在客户端确认账号",
       ),
     );
     expect(switchAccount).toHaveBeenCalledWith("account-b");
@@ -138,20 +138,23 @@ describe("WindsurfAccountsPanel switch feedback", () => {
 
       await waitFor(() =>
         expect(toast.warning).toHaveBeenCalledWith(
-          "登录态已写入，但 Windsurf 未能自动启动：No matching Windsurf process",
+          "会话写入已校验，但 Windsurf 未能自动启动：No matching Windsurf process",
         ),
       );
       expect(toast.success).not.toHaveBeenCalled();
     },
   );
 
-  it("does not claim the account was switched after preflight failure", async () => {
-    switchAccount.mockRejectedValue("APP_PATH_NOT_FOUND:windsurf");
+  it.each([
+    "APP_PATH_NOT_FOUND:windsurf",
+    "Windsurf credential refresh failed; the client was not changed",
+    "Cannot read the target Devin Safe Storage key",
+    "Windsurf login-state verification failed after writing",
+  ])("does not report success after failure: %s", async (error) => {
+    switchAccount.mockRejectedValue(error);
     confirmSwitch();
 
-    await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith("APP_PATH_NOT_FOUND:windsurf"),
-    );
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(error));
     expect(toast.success).not.toHaveBeenCalled();
     expect(toast.warning).not.toHaveBeenCalled();
   });

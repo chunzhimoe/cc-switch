@@ -3,6 +3,7 @@ use rusqlite::{Connection, OptionalExtension};
 use serde_json::Value;
 use std::path::Path;
 use uuid::Uuid;
+use zeroize::Zeroizing;
 
 use crate::error::AppError;
 
@@ -14,6 +15,7 @@ const API_SERVER_SECRET_KEY: &str =
     r#"secret://{"extensionId":"codeium.windsurf","key":"windsurf_auth.apiServerUrl"}"#;
 const SELECTED_AUTH_KEY: &str = "codeium.windsurf-windsurf_auth";
 const EXTENSION_STATE_KEY: &str = "codeium.windsurf";
+const PENDING_API_KEY_MIGRATION_KEY: &str = "windsurf.pendingApiKeyMigration";
 const V10_PREFIX: &[u8] = b"v10";
 const V11_PREFIX: &[u8] = b"v11";
 
@@ -21,63 +23,150 @@ pub fn default_api_server_url() -> &'static str {
     DEFAULT_API_SERVER_URL
 }
 
-pub fn validate_profile_encryption(profile_dir: &Path) -> Result<(), AppError> {
-    #[cfg(target_os = "windows")]
-    {
-        let _ = get_windows_encryption_key(profile_dir)?;
-    }
-    #[cfg(target_os = "macos")]
-    {
-        let _ = read_macos_safe_storage_password(profile_dir)?;
-    }
-    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-    {
-        let _ = profile_dir;
-    }
-    Ok(())
+/// Operation-scoped SecretStorage material. It deliberately has no Debug or
+/// serialization implementation and is zeroized when the prepared switch drops.
+pub(crate) enum EncryptionContext {
+    #[cfg(any(target_os = "windows", test))]
+    Windows(Zeroizing<Vec<u8>>),
+    #[cfg(any(target_os = "macos", test))]
+    Macos(Zeroizing<String>),
 }
 
-pub fn write_windsurf_auth_data(
-    conn: &Connection,
-    profile_dir: &Path,
-    auth_status: &Value,
-    account_label: &str,
-    access_token: &str,
-    api_server_url: &str,
-) -> Result<(), AppError> {
-    let auth_status_content = serde_json::to_string(auth_status)
-        .map_err(|error| AppError::JsonSerialize { source: error })?;
-    upsert_item(conn, AUTH_STATUS_KEY, &auth_status_content)?;
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ExistingSecretHealth {
+    Missing,
+    Valid,
+    Invalid,
+}
 
-    let sessions_prefix = query_existing_secret_prefix(conn, SESSIONS_SECRET_KEY)?;
-    let sessions = serde_json::json!([{
-        "id": Uuid::new_v4().to_string(),
+/// Captures exactly the two authentication secrets inspected during prepare.
+/// The encrypted values are retained only to reject a stale prepared write.
+pub(crate) struct ExistingSecretsSnapshot {
+    sessions_raw: Option<String>,
+    api_server_raw: Option<String>,
+    sessions_health: ExistingSecretHealth,
+    api_server_health: ExistingSecretHealth,
+}
+
+impl ExistingSecretsSnapshot {
+    pub(crate) fn ensure_unchanged(&self, conn: &Connection) -> Result<(), AppError> {
+        let sessions = query_optional_item(conn, SESSIONS_SECRET_KEY)?;
+        let api_server = query_optional_item(conn, API_SERVER_SECRET_KEY)?;
+        if sessions != self.sessions_raw || api_server != self.api_server_raw {
+            return Err(AppError::localized(
+                "windsurf.secret_storage_changed",
+                "Windsurf SecretStorage 在切换准备后发生变化，请重试",
+                "Windsurf SecretStorage changed after the switch was prepared; please retry",
+            ));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn log_invalid_replacements(&self) {
+        if self.sessions_health == ExistingSecretHealth::Invalid {
+            log::warn!(
+                "Existing Windsurf sessions secret failed strict validation; \
+                 replacing it after creating a full database backup"
+            );
+        }
+        if self.api_server_health == ExistingSecretHealth::Invalid {
+            log::warn!(
+                "Existing Windsurf API-server secret failed strict validation; \
+                 replacing it after creating a full database backup"
+            );
+        }
+    }
+}
+
+pub(crate) fn prepare_encryption_context(
+    profile_dir: &Path,
+    launch_path: &Path,
+) -> Result<EncryptionContext, AppError> {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = launch_path;
+        let key = get_windows_encryption_key(profile_dir)?;
+        return Ok(EncryptionContext::Windows(Zeroizing::new(key)));
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let target = macos_keychain_target(launch_path, profile_dir)?;
+        let password = read_macos_safe_storage_password(target)?;
+        return Ok(EncryptionContext::Macos(password));
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        let _ = (profile_dir, launch_path);
+        Err(unsupported_platform_error())
+    }
+}
+
+pub(crate) fn inspect_existing_auth_secrets(
+    conn: &Connection,
+    context: &EncryptionContext,
+) -> Result<ExistingSecretsSnapshot, AppError> {
+    let sessions_raw = query_optional_item(conn, SESSIONS_SECRET_KEY)?;
+    let api_server_raw = query_optional_item(conn, API_SERVER_SECRET_KEY)?;
+    let sessions_health = classify_existing_secret(
+        sessions_raw.as_deref(),
+        ExistingSecretKind::Sessions,
+        context,
+    )?;
+    let api_server_health = classify_existing_secret(
+        api_server_raw.as_deref(),
+        ExistingSecretKind::ApiServerUrl,
+        context,
+    )?;
+    Ok(ExistingSecretsSnapshot {
+        sessions_raw,
+        api_server_raw,
+        sessions_health,
+        api_server_health,
+    })
+}
+
+pub(crate) fn build_sessions_value(
+    session_id: &str,
+    access_token: &str,
+    account_label: &str,
+) -> Value {
+    serde_json::json!([{
+        "id": session_id,
         "accessToken": access_token,
         "account": {
             "label": account_label,
             "id": account_label,
         },
         "scopes": [],
-    }]);
+    }])
+}
+
+pub(crate) fn write_windsurf_auth_data(
+    conn: &Connection,
+    auth_status: &Value,
+    account_label: &str,
+    access_token: &str,
+    api_server_url: &str,
+    session_id: &str,
+    context: &EncryptionContext,
+) -> Result<(), AppError> {
+    let auth_status_content = serde_json::to_string(auth_status)
+        .map_err(|error| AppError::JsonSerialize { source: error })?;
+    upsert_item(conn, AUTH_STATUS_KEY, &auth_status_content)?;
+
+    let sessions = build_sessions_value(session_id, access_token, account_label);
     let sessions_plain = serde_json::to_string(&sessions)
         .map_err(|error| AppError::JsonSerialize { source: error })?;
-    let encrypted_sessions = encode_encrypted_buffer_json(
-        sessions_plain.as_bytes(),
-        sessions_prefix.as_deref(),
-        profile_dir,
-    )?;
+    let encrypted_sessions = encode_encrypted_buffer_json(sessions_plain.as_bytes(), context)?;
     upsert_item(conn, SESSIONS_SECRET_KEY, &encrypted_sessions)?;
 
-    let api_server_prefix = query_existing_secret_prefix(conn, API_SERVER_SECRET_KEY)?;
-    let encrypted_api_server = encode_encrypted_buffer_json(
-        api_server_url.as_bytes(),
-        api_server_prefix.as_deref(),
-        profile_dir,
-    )?;
+    let encrypted_api_server = encode_encrypted_buffer_json(api_server_url.as_bytes(), context)?;
     upsert_item(conn, API_SERVER_SECRET_KEY, &encrypted_api_server)?;
 
     upsert_item(conn, SELECTED_AUTH_KEY, account_label)?;
-    upsert_extension_state(conn, api_server_url, access_token)?;
+    upsert_extension_state(conn, api_server_url)?;
 
     let onboarding = serde_json::json!({
         "completed": true,
@@ -112,19 +201,8 @@ pub fn write_windsurf_auth_data(
     Ok(())
 }
 
-fn upsert_extension_state(
-    conn: &Connection,
-    api_server_url: &str,
-    access_token: &str,
-) -> Result<(), AppError> {
-    let existing: Option<String> = conn
-        .query_row(
-            "SELECT value FROM ItemTable WHERE key = ?1",
-            [EXTENSION_STATE_KEY],
-            |row| row.get(0),
-        )
-        .optional()
-        .map_err(|error| AppError::Database(error.to_string()))?;
+fn upsert_extension_state(conn: &Connection, api_server_url: &str) -> Result<(), AppError> {
+    let existing = query_optional_item(conn, EXTENSION_STATE_KEY)?;
     let mut state = existing
         .as_deref()
         .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
@@ -135,14 +213,7 @@ fn upsert_extension_state(
             "apiServerUrl".to_string(),
             Value::String(api_server_url.to_string()),
         );
-        if is_supported_auth_token(access_token) {
-            object.insert(
-                "windsurf.pendingApiKeyMigration".to_string(),
-                Value::String(access_token.to_string()),
-            );
-        } else {
-            object.remove("windsurf.pendingApiKeyMigration");
-        }
+        object.remove(PENDING_API_KEY_MIGRATION_KEY);
         if object
             .get("codeium.installationId")
             .and_then(Value::as_str)
@@ -159,12 +230,6 @@ fn upsert_extension_state(
     upsert_item(conn, EXTENSION_STATE_KEY, &serialized)
 }
 
-fn is_supported_auth_token(token: &str) -> bool {
-    token.starts_with("sk-ws-")
-        || token.starts_with("devin-session-token$")
-        || token.starts_with("cog_")
-}
-
 fn upsert_item(conn: &Connection, key: &str, value: &str) -> Result<(), AppError> {
     conn.execute(
         "INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?1, ?2)",
@@ -174,62 +239,164 @@ fn upsert_item(conn: &Connection, key: &str, value: &str) -> Result<(), AppError
     Ok(())
 }
 
-fn query_existing_secret_prefix(conn: &Connection, key: &str) -> Result<Option<String>, AppError> {
-    let existing: Option<String> = conn
-        .query_row("SELECT value FROM ItemTable WHERE key = ?1", [key], |row| {
-            row.get(0)
-        })
-        .optional()
-        .map_err(|error| AppError::Database(error.to_string()))?;
-    let Some(existing) = existing else {
-        return Ok(None);
+fn query_optional_item(conn: &Connection, key: &str) -> Result<Option<String>, AppError> {
+    conn.query_row("SELECT value FROM ItemTable WHERE key = ?1", [key], |row| {
+        row.get(0)
+    })
+    .optional()
+    .map_err(|error| AppError::Database(error.to_string()))
+}
+
+#[derive(Clone, Copy)]
+enum ExistingSecretKind {
+    Sessions,
+    ApiServerUrl,
+}
+
+fn classify_existing_secret(
+    raw: Option<&str>,
+    kind: ExistingSecretKind,
+    context: &EncryptionContext,
+) -> Result<ExistingSecretHealth, AppError> {
+    let Some(raw) = raw else {
+        return Ok(ExistingSecretHealth::Missing);
     };
-    let parsed: Value = match serde_json::from_str(&existing) {
-        Ok(value) => value,
-        Err(_) => return Ok(None),
-    };
-    let bytes = match decode_buffer_data(&parsed) {
+    let bytes = match parse_encrypted_buffer_json(raw) {
         Ok(bytes) => bytes,
-        Err(_) => return Ok(None),
+        Err(_) => return Ok(ExistingSecretHealth::Invalid),
     };
-    Ok(if bytes.starts_with(V10_PREFIX) {
-        Some("v10".to_string())
-    } else if bytes.starts_with(V11_PREFIX) {
-        Some("v11".to_string())
+    if bytes.starts_with(V11_PREFIX) {
+        return Err(unsupported_secret_version_error());
+    }
+    if !bytes.starts_with(V10_PREFIX) {
+        return Ok(ExistingSecretHealth::Invalid);
+    }
+    let plaintext = match decrypt_secret_payload(&bytes, context) {
+        Ok(plaintext) => plaintext,
+        Err(_) => return Ok(ExistingSecretHealth::Invalid),
+    };
+    let valid = match kind {
+        ExistingSecretKind::Sessions => {
+            serde_json::from_slice::<Value>(&plaintext).is_ok_and(|value| value.is_array())
+        }
+        ExistingSecretKind::ApiServerUrl => {
+            std::str::from_utf8(&plaintext).is_ok_and(|value| !value.trim().is_empty())
+        }
+    };
+    Ok(if valid {
+        ExistingSecretHealth::Valid
     } else {
-        None
+        ExistingSecretHealth::Invalid
     })
 }
 
 fn decode_buffer_data(value: &Value) -> Result<Vec<u8>, AppError> {
+    if value.get("type").and_then(Value::as_str) != Some("Buffer") {
+        return Err(secret_format_error("Secret value is not a Buffer object"));
+    }
     value
         .get("data")
         .and_then(Value::as_array)
-        .ok_or_else(|| AppError::InvalidInput("Secret value is not a Buffer object".to_string()))?
+        .ok_or_else(|| secret_format_error("Secret Buffer data is missing"))?
         .iter()
         .map(|value| {
             value
                 .as_u64()
                 .filter(|value| *value <= 255)
                 .map(|value| value as u8)
-                .ok_or_else(|| {
-                    AppError::InvalidInput("Secret Buffer contains an invalid byte".to_string())
-                })
+                .ok_or_else(|| secret_format_error("Secret Buffer contains an invalid byte"))
         })
         .collect()
 }
 
+fn parse_encrypted_buffer_json(raw: &str) -> Result<Vec<u8>, AppError> {
+    let value = serde_json::from_str::<Value>(raw)
+        .map_err(|_| secret_format_error("Secret value is not valid JSON"))?;
+    decode_buffer_data(&value)
+}
+
 fn encode_encrypted_buffer_json(
     plaintext: &[u8],
-    preferred_prefix: Option<&str>,
-    profile_dir: &Path,
+    context: &EncryptionContext,
 ) -> Result<String, AppError> {
-    let encrypted = encrypt_secret_payload(plaintext, preferred_prefix, profile_dir)?;
+    let encrypted = encrypt_secret_payload(plaintext, context)?;
     serde_json::to_string(&serde_json::json!({
         "type": "Buffer",
         "data": encrypted,
     }))
     .map_err(|error| AppError::JsonSerialize { source: error })
+}
+
+pub(crate) fn decrypt_encrypted_buffer_json(
+    raw: &str,
+    context: &EncryptionContext,
+) -> Result<Zeroizing<Vec<u8>>, AppError> {
+    let encrypted = parse_encrypted_buffer_json(raw)?;
+    if encrypted.starts_with(V11_PREFIX) {
+        return Err(unsupported_secret_version_error());
+    }
+    if !encrypted.starts_with(V10_PREFIX) {
+        return Err(secret_format_error(
+            "Secret value does not use the supported v10 format",
+        ));
+    }
+    decrypt_secret_payload(&encrypted, context)
+}
+
+fn encrypt_secret_payload(
+    plaintext: &[u8],
+    context: &EncryptionContext,
+) -> Result<Vec<u8>, AppError> {
+    #[cfg(not(any(target_os = "windows", target_os = "macos", test)))]
+    let _ = plaintext;
+    match context {
+        #[cfg(any(target_os = "windows", test))]
+        EncryptionContext::Windows(key) => encrypt_windows_gcm_v10(key, plaintext),
+        #[cfg(any(target_os = "macos", test))]
+        EncryptionContext::Macos(password) => encrypt_macos_secret(plaintext, password.as_bytes()),
+    }
+}
+
+fn decrypt_secret_payload(
+    encrypted: &[u8],
+    context: &EncryptionContext,
+) -> Result<Zeroizing<Vec<u8>>, AppError> {
+    #[cfg(not(any(target_os = "windows", target_os = "macos", test)))]
+    let _ = encrypted;
+    match context {
+        #[cfg(any(target_os = "windows", test))]
+        EncryptionContext::Windows(key) => decrypt_windows_gcm_v10(key, encrypted),
+        #[cfg(any(target_os = "macos", test))]
+        EncryptionContext::Macos(password) => {
+            decrypt_macos_secret(encrypted, password.as_bytes())
+        }
+    }
+}
+
+fn secret_format_error(reason: &str) -> AppError {
+    AppError::localized(
+        "windsurf.secret_storage_invalid",
+        format!("Windsurf SecretStorage 数据无效: {reason}"),
+        format!("Windsurf SecretStorage data is invalid: {reason}"),
+    )
+}
+
+fn unsupported_secret_version_error() -> AppError {
+    AppError::localized(
+        "windsurf.secret_storage_v11_unsupported",
+        "检测到不受支持的 Windsurf SecretStorage v11，已拒绝覆盖",
+        "Unsupported Windsurf SecretStorage v11 was detected and \
+         will not be overwritten",
+    )
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+fn unsupported_platform_error() -> AppError {
+    AppError::localized(
+        "windsurf.secret_storage_platform_pending",
+        "当前阶段仅支持 Windows/macOS Windsurf SecretStorage 写入",
+        "This phase only supports Windsurf SecretStorage writes on Windows/macOS",
+    )
 }
 
 #[cfg(target_os = "windows")]
@@ -267,8 +434,8 @@ fn dpapi_decrypt(protected: &[u8]) -> Result<Vec<u8>, AppError> {
                     "Windsurf DPAPI 解密失败，请使用创建该配置的同一 Windows 用户运行: {error}"
                 ),
                 format!(
-                    "Windsurf DPAPI decryption failed; run as the same Windows user that created this profile: {}",
-                    error
+                    "Windsurf DPAPI decryption failed; run as the same Windows \
+                     user that created this profile: {error}"
                 ),
             )
         })?;
@@ -329,17 +496,22 @@ fn get_windows_encryption_key(profile_dir: &Path) -> Result<Vec<u8>, AppError> {
     Ok(key)
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", test))]
 fn encrypt_windows_gcm_v10(key: &[u8], plaintext: &[u8]) -> Result<Vec<u8>, AppError> {
     use aes_gcm::aead::generic_array::GenericArray;
     use aes_gcm::aead::{Aead, AeadCore, OsRng};
     use aes_gcm::{Aes256Gcm, KeyInit};
 
+    if key.len() != 32 {
+        return Err(secret_format_error(
+            "Windows encryption key length is invalid",
+        ));
+    }
     let cipher = Aes256Gcm::new(GenericArray::from_slice(key));
     let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
     let ciphertext = cipher
         .encrypt(&nonce, plaintext)
-        .map_err(|error| AppError::Config(format!("AES-GCM encryption failed: {error}")))?;
+        .map_err(|_| secret_format_error("AES-GCM encryption failed"))?;
     let mut encrypted = Vec::with_capacity(V10_PREFIX.len() + nonce.len() + ciphertext.len());
     encrypted.extend_from_slice(V10_PREFIX);
     encrypted.extend_from_slice(&nonce);
@@ -347,179 +519,118 @@ fn encrypt_windows_gcm_v10(key: &[u8], plaintext: &[u8]) -> Result<Vec<u8>, AppE
     Ok(encrypted)
 }
 
-#[cfg(target_os = "windows")]
-fn encrypt_secret_payload(
-    plaintext: &[u8],
-    preferred_prefix: Option<&str>,
-    profile_dir: &Path,
-) -> Result<Vec<u8>, AppError> {
-    if preferred_prefix == Some("v11") {
-        return Err(AppError::Config(
-            "Windsurf SecretStorage v11 writes are not supported on Windows".to_string(),
-        ));
-    }
-    let key = get_windows_encryption_key(profile_dir)?;
-    encrypt_windows_gcm_v10(&key, plaintext)
-}
-
-#[cfg(all(test, target_os = "windows"))]
-mod windows_tests {
-    use super::*;
+#[cfg(any(target_os = "windows", test))]
+fn decrypt_windows_gcm_v10(
+    key: &[u8],
+    encrypted: &[u8],
+) -> Result<Zeroizing<Vec<u8>>, AppError> {
     use aes_gcm::aead::generic_array::GenericArray;
     use aes_gcm::aead::{Aead, KeyInit};
     use aes_gcm::Aes256Gcm;
-    use base64::{engine::general_purpose, Engine as _};
-    use tempfile::TempDir;
 
-    #[test]
-    fn reports_missing_local_state_before_writing() {
-        let profile = TempDir::new().expect("temp profile");
-        let error = validate_profile_encryption(profile.path()).expect_err("missing Local State");
-        assert!(error.to_string().contains("Local State"));
+    const NONCE_LEN: usize = 12;
+    const TAG_LEN: usize = 16;
+    if key.len() != 32 {
+        return Err(secret_format_error(
+            "Windows encryption key length is invalid",
+        ));
     }
-
-    #[test]
-    fn rejects_encrypted_key_without_dpapi_prefix() {
-        let profile = TempDir::new().expect("temp profile");
-        let encoded = general_purpose::STANDARD.encode(b"not-dpapi");
-        std::fs::write(
-            profile.path().join("Local State"),
-            serde_json::json!({"os_crypt":{"encrypted_key":encoded}}).to_string(),
-        )
-        .expect("write Local State");
-
-        let error = validate_profile_encryption(profile.path()).expect_err("invalid prefix");
-        assert!(error.to_string().contains("DPAPI"));
+    let payload = encrypted
+        .strip_prefix(V10_PREFIX)
+        .ok_or_else(|| secret_format_error("Windows secret is missing the v10 prefix"))?;
+    if payload.len() < NONCE_LEN + TAG_LEN {
+        return Err(secret_format_error("Windows v10 secret is truncated"));
     }
-
-    #[test]
-    fn rejects_existing_v11_secret_on_windows() {
-        let profile = TempDir::new().expect("temp profile");
-        let error = encrypt_secret_payload(b"secret", Some("v11"), profile.path())
-            .expect_err("v11 should be rejected");
-        assert!(error.to_string().contains("v11"));
-    }
-
-    #[test]
-    fn encrypts_windows_secret_as_v10_aes_gcm() {
-        let key = [7u8; 32];
-        let plaintext = b"windsurf-secret";
-        let encrypted = encrypt_windows_gcm_v10(&key, plaintext).expect("encrypt secret");
-        assert!(encrypted.starts_with(V10_PREFIX));
-        assert!(encrypted.len() > V10_PREFIX.len() + 12);
-
-        let cipher = Aes256Gcm::new(GenericArray::from_slice(&key));
-        let nonce = GenericArray::from_slice(&encrypted[3..15]);
-        let decrypted = cipher
-            .decrypt(nonce, &encrypted[15..])
-            .expect("decrypt secret");
-        assert_eq!(decrypted, plaintext);
-    }
+    let (nonce, ciphertext) = payload.split_at(NONCE_LEN);
+    let cipher = Aes256Gcm::new(GenericArray::from_slice(key));
+    let plaintext = cipher
+        .decrypt(GenericArray::from_slice(nonce), ciphertext)
+        .map_err(|_| secret_format_error("Windows v10 secret authentication failed"))?;
+    Ok(Zeroizing::new(plaintext))
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", test))]
 const MACOS_SAFE_STORAGE_IV: [u8; 16] = [b' '; 16];
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", test))]
 const MACOS_SAFE_STORAGE_SALT: &[u8] = b"saltysalt";
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", test))]
 const MACOS_SAFE_STORAGE_ITERATIONS: u32 = 1003;
 
-#[cfg(target_os = "macos")]
-#[derive(Clone, Copy)]
-struct MacosKeychainQuery {
+#[cfg(any(target_os = "macos", test))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct MacosKeychainTarget {
+    application_name: &'static str,
     service: &'static str,
-    account: Option<&'static str>,
+    account: &'static str,
 }
 
-#[cfg(target_os = "macos")]
-const DEVIN_KEYCHAIN_QUERIES: [MacosKeychainQuery; 4] = [
-    MacosKeychainQuery {
-        service: "Devin Safe Storage",
-        account: Some("Devin"),
-    },
-    MacosKeychainQuery {
-        service: "Devin Safe Storage",
-        account: Some("Devin Key"),
-    },
-    MacosKeychainQuery {
-        service: "Devin Safe Storage",
-        account: Some("devin"),
-    },
-    MacosKeychainQuery {
-        service: "Devin Safe Storage",
-        account: None,
-    },
-];
+#[cfg(any(target_os = "macos", test))]
+const DEVIN_KEYCHAIN_TARGET: MacosKeychainTarget = MacosKeychainTarget {
+    application_name: "Devin",
+    service: "Devin Safe Storage",
+    account: "Devin Key",
+};
 
-#[cfg(target_os = "macos")]
-const WINDSURF_KEYCHAIN_QUERIES: [MacosKeychainQuery; 5] = [
-    MacosKeychainQuery {
-        service: "Windsurf Safe Storage",
-        account: Some("Windsurf Key"),
-    },
-    MacosKeychainQuery {
-        service: "Windsurf Safe Storage",
-        account: Some("Windsurf"),
-    },
-    MacosKeychainQuery {
-        service: "Windsurf Safe Storage",
-        account: Some("windsurf"),
-    },
-    MacosKeychainQuery {
-        service: "Windsurf Safe Storage",
-        account: Some("Windsurf Safe Storage"),
-    },
-    MacosKeychainQuery {
-        service: "Windsurf Safe Storage",
-        account: None,
-    },
-];
+#[cfg(any(target_os = "macos", test))]
+const WINDSURF_KEYCHAIN_TARGET: MacosKeychainTarget = MacosKeychainTarget {
+    application_name: "Windsurf",
+    service: "Windsurf Safe Storage",
+    account: "Windsurf Key",
+};
 
-#[cfg(target_os = "macos")]
-fn macos_profile_prefers_windsurf(profile_dir: &Path, launch_path: Option<&Path>) -> bool {
-    let name = profile_dir
+#[cfg(any(target_os = "macos", test))]
+fn macos_keychain_target(
+    launch_path: &Path,
+    profile_dir: &Path,
+) -> Result<MacosKeychainTarget, AppError> {
+    let target = launch_path
+        .ancestors()
+        .find_map(|ancestor| {
+            let name = ancestor.file_name()?.to_str()?;
+            if name.eq_ignore_ascii_case("Devin.app") {
+                Some(DEVIN_KEYCHAIN_TARGET)
+            } else if name.eq_ignore_ascii_case("Windsurf.app") {
+                Some(WINDSURF_KEYCHAIN_TARGET)
+            } else {
+                None
+            }
+        })
+        .ok_or_else(|| {
+            AppError::localized(
+                "windsurf.macos.app_identity_unknown",
+                "无法从目标 .app 路径确定 Devin/Windsurf 身份，已拒绝查询 Keychain",
+                "The Devin/Windsurf identity could not be determined from the \
+                 target .app path; Keychain lookup was refused",
+            )
+        })?;
+
+    let profile_name = profile_dir
         .file_name()
         .and_then(|name| name.to_str())
-        .unwrap_or_default()
-        .to_ascii_lowercase();
-    if name.starts_with("windsurf") {
-        return true;
+        .unwrap_or_default();
+    let profile_target = if profile_name.eq_ignore_ascii_case("Devin")
+        || profile_name.to_ascii_lowercase().starts_with("devin-")
+    {
+        Some(DEVIN_KEYCHAIN_TARGET)
+    } else if profile_name.eq_ignore_ascii_case("Windsurf")
+        || profile_name.to_ascii_lowercase().starts_with("windsurf-")
+    {
+        Some(WINDSURF_KEYCHAIN_TARGET)
+    } else {
+        None
+    };
+    if profile_target.is_some_and(|profile_target| profile_target != target) {
+        return Err(AppError::localized(
+            "windsurf.macos.profile_app_mismatch",
+            "目标 .app 与用户数据目录品牌不一致，已拒绝查询 Keychain",
+            "The target .app and user-data directory brands do not match; \
+             Keychain lookup was refused",
+        ));
     }
-    if name.starts_with("devin") {
-        return false;
-    }
-
-    // Custom profiles have no brand in their directory name. Use the selected
-    // application, including executable paths saved by older CC Switch builds.
-    launch_path
-        .and_then(|path| {
-            path.ancestors().find_map(|ancestor| {
-                let name = ancestor.file_name()?.to_str()?;
-                if name.eq_ignore_ascii_case("Windsurf.app") {
-                    Some(true)
-                } else if name.eq_ignore_ascii_case("Devin.app") {
-                    Some(false)
-                } else {
-                    None
-                }
-            })
-        })
-        .unwrap_or(false)
+    Ok(target)
 }
 
-#[cfg(target_os = "macos")]
-fn macos_keychain_queries(profile_dir: &Path) -> impl Iterator<Item = MacosKeychainQuery> + '_ {
-    let launch_path = crate::settings::get_windsurf_app_path();
-    let (primary, fallback): (&[MacosKeychainQuery], &[MacosKeychainQuery]) =
-        if macos_profile_prefers_windsurf(profile_dir, launch_path.as_deref()) {
-            (&WINDSURF_KEYCHAIN_QUERIES, &DEVIN_KEYCHAIN_QUERIES)
-        } else {
-            (&DEVIN_KEYCHAIN_QUERIES, &WINDSURF_KEYCHAIN_QUERIES)
-        };
-    primary.iter().chain(fallback.iter()).copied()
-}
-
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", test))]
 fn strip_macos_command_line_ending(mut value: String) -> String {
     if value.ends_with("\r\n") {
         value.truncate(value.len() - 2);
@@ -530,52 +641,95 @@ fn strip_macos_command_line_ending(mut value: String) -> String {
 }
 
 #[cfg(target_os = "macos")]
-fn read_macos_keychain_secret(query: MacosKeychainQuery) -> Option<String> {
+fn read_macos_keychain_secret(target: MacosKeychainTarget) -> Result<String, AppError> {
     use std::process::Command;
 
-    let mut command = Command::new("/usr/bin/security");
-    command.args(["find-generic-password", "-w", "-s", query.service]);
-    if let Some(account) = query.account {
-        command.args(["-a", account]);
-    }
-
-    let output = command.output().ok()?;
+    let output = Command::new("/usr/bin/security")
+        .args([
+            "find-generic-password",
+            "-w",
+            "-s",
+            target.service,
+            "-a",
+            target.account,
+        ])
+        .output()
+        .map_err(|error| {
+            AppError::localized(
+                "windsurf.secret_storage_keychain_command_failed",
+                format!("执行 macOS Keychain 查询失败（阶段: spawn security）: {error}"),
+                format!(
+                    "Failed to execute the macOS Keychain query \
+                     (stage: spawn security): {error}"
+                ),
+            )
+        })?;
     if !output.status.success() {
-        return None;
+        let exit = output
+            .status
+            .code()
+            .map(|code| code.to_string())
+            .unwrap_or_else(|| "signal".to_string());
+        return Err(AppError::localized(
+            "windsurf.secret_storage_keychain_query_failed",
+            format!(
+                "macOS Keychain 查询失败（阶段: find-generic-password，\
+                 退出状态: {exit}）。请确认已在目标客户端初始化安全存储并允许访问"
+            ),
+            format!(
+                "The macOS Keychain query failed \
+                 (stage: find-generic-password, exit status: {exit}). \
+                 Initialize secure storage in the target client and allow access"
+            ),
+        ));
     }
+    let secret = String::from_utf8(output.stdout).map_err(|_| {
+        AppError::localized(
+            "windsurf.secret_storage_keychain_output_invalid",
+            "macOS Keychain 查询返回了无效文本（阶段: decode stdout）",
+            "The macOS Keychain query returned invalid text (stage: decode stdout)",
+        )
+    })?;
+    Ok(strip_macos_command_line_ending(secret))
+}
 
-    let secret = String::from_utf8(output.stdout).ok()?;
-    let secret = strip_macos_command_line_ending(secret);
-    (!secret.is_empty()).then_some(secret)
+#[cfg(any(target_os = "macos", test))]
+fn read_macos_safe_storage_password_with<F>(
+    target: MacosKeychainTarget,
+    mut reader: F,
+) -> Result<Zeroizing<String>, AppError>
+where
+    F: FnMut(MacosKeychainTarget) -> Result<String, AppError>,
+{
+    let secret = reader(target)?;
+    if secret.is_empty() {
+        return Err(AppError::localized(
+            "windsurf.secret_storage_keychain_missing",
+            format!(
+                "目标 {} 客户端尚未初始化 Safe Storage Keychain 条目，请先手动打开官方客户端完成初始化",
+                target.application_name
+            ),
+            format!(
+                "The target {} client has not initialized its Safe Storage \
+                 Keychain item; open the official client first",
+                target.application_name
+            ),
+        ));
+    }
+    Ok(Zeroizing::new(secret))
 }
 
 #[cfg(target_os = "macos")]
 fn read_macos_safe_storage_password(
-    profile_dir: &Path,
-) -> Result<zeroize::Zeroizing<String>, AppError> {
-    for query in macos_keychain_queries(profile_dir) {
-        if let Some(secret) = read_macos_keychain_secret(query) {
-            return Ok(zeroize::Zeroizing::new(secret));
-        }
-    }
-
-    Err(AppError::localized(
-        "windsurf.secret_storage_keychain_missing",
-        "读取 Devin/Windsurf Safe Storage 密钥失败",
-        "Failed to read the Devin/Windsurf Safe Storage key from Keychain",
-    ))
+    target: MacosKeychainTarget,
+) -> Result<Zeroizing<String>, AppError> {
+    read_macos_safe_storage_password_with(target, read_macos_keychain_secret)
 }
 
-#[cfg(target_os = "macos")]
-fn encrypt_macos_secret(plaintext: &[u8], password: &[u8]) -> Result<Vec<u8>, AppError> {
-    use aes::Aes128;
-    use cbc::cipher::block_padding::Pkcs7;
-    use cbc::cipher::{BlockEncryptMut, KeyIvInit};
+#[cfg(any(target_os = "macos", test))]
+fn derive_macos_safe_storage_key(password: &[u8]) -> Zeroizing<[u8; 16]> {
     use pbkdf2::pbkdf2_hmac;
     use sha1::Sha1;
-    use zeroize::Zeroizing;
-
-    type Aes128CbcEncryptor = cbc::Encryptor<Aes128>;
 
     let mut key = Zeroizing::new([0u8; 16]);
     pbkdf2_hmac::<Sha1>(
@@ -584,10 +738,21 @@ fn encrypt_macos_secret(plaintext: &[u8], password: &[u8]) -> Result<Vec<u8>, Ap
         MACOS_SAFE_STORAGE_ITERATIONS,
         &mut key[..],
     );
+    key
+}
 
+#[cfg(any(target_os = "macos", test))]
+fn encrypt_macos_secret(plaintext: &[u8], password: &[u8]) -> Result<Vec<u8>, AppError> {
+    use aes::Aes128;
+    use cbc::cipher::block_padding::Pkcs7;
+    use cbc::cipher::{BlockEncryptMut, KeyIvInit};
+
+    type Aes128CbcEncryptor = cbc::Encryptor<Aes128>;
+
+    let key = derive_macos_safe_storage_key(password);
     let cipher =
-        Aes128CbcEncryptor::new_from_slices(&key[..], &MACOS_SAFE_STORAGE_IV).map_err(|error| {
-            AppError::Config(format!("Failed to initialize AES-CBC encryptor: {error}"))
+        Aes128CbcEncryptor::new_from_slices(&key[..], &MACOS_SAFE_STORAGE_IV).map_err(|_| {
+            secret_format_error("Failed to initialize the macOS AES-CBC encryptor")
         })?;
     let message_len = plaintext.len();
     let padding_len = 16 - (message_len % 16);
@@ -595,7 +760,7 @@ fn encrypt_macos_secret(plaintext: &[u8], password: &[u8]) -> Result<Vec<u8>, Ap
     buffer.resize(message_len + padding_len, 0);
     let ciphertext = cipher
         .encrypt_padded_mut::<Pkcs7>(buffer.as_mut_slice(), message_len)
-        .map_err(|error| AppError::Config(format!("AES-CBC encryption failed: {error}")))?
+        .map_err(|_| secret_format_error("macOS AES-CBC encryption failed"))?
         .to_vec();
 
     let mut encrypted = Vec::with_capacity(V10_PREFIX.len() + ciphertext.len());
@@ -604,38 +769,151 @@ fn encrypt_macos_secret(plaintext: &[u8], password: &[u8]) -> Result<Vec<u8>, Ap
     Ok(encrypted)
 }
 
-#[cfg(target_os = "macos")]
-fn encrypt_secret_payload(
-    plaintext: &[u8],
-    preferred_prefix: Option<&str>,
-    profile_dir: &Path,
-) -> Result<Vec<u8>, AppError> {
-    if preferred_prefix == Some("v11") {
-        return Err(AppError::Config(
-            "Windsurf SecretStorage v11 writes are not supported on macOS".to_string(),
+#[cfg(any(target_os = "macos", test))]
+fn decrypt_macos_secret(
+    encrypted: &[u8],
+    password: &[u8],
+) -> Result<Zeroizing<Vec<u8>>, AppError> {
+    use aes::Aes128;
+    use cbc::cipher::block_padding::Pkcs7;
+    use cbc::cipher::{BlockDecryptMut, KeyIvInit};
+
+    type Aes128CbcDecryptor = cbc::Decryptor<Aes128>;
+
+    let ciphertext = encrypted
+        .strip_prefix(V10_PREFIX)
+        .ok_or_else(|| secret_format_error("macOS secret is missing the v10 prefix"))?;
+    if ciphertext.is_empty() || ciphertext.len() % 16 != 0 {
+        return Err(secret_format_error(
+            "macOS v10 ciphertext length is invalid",
         ));
     }
-
-    let password = read_macos_safe_storage_password(profile_dir)?;
-    encrypt_macos_secret(plaintext, password.as_bytes())
+    let key = derive_macos_safe_storage_key(password);
+    let cipher =
+        Aes128CbcDecryptor::new_from_slices(&key[..], &MACOS_SAFE_STORAGE_IV).map_err(|_| {
+            secret_format_error("Failed to initialize the macOS AES-CBC decryptor")
+        })?;
+    let mut buffer = Zeroizing::new(ciphertext.to_vec());
+    let plaintext_len = cipher
+        .decrypt_padded_mut::<Pkcs7>(buffer.as_mut_slice())
+        .map_err(|_| secret_format_error("macOS v10 padding validation failed"))?
+        .len();
+    buffer.truncate(plaintext_len);
+    Ok(buffer)
 }
 
-#[cfg(not(any(target_os = "windows", target_os = "macos")))]
-fn encrypt_secret_payload(
-    _plaintext: &[u8],
-    _preferred_prefix: Option<&str>,
-    _profile_dir: &Path,
-) -> Result<Vec<u8>, AppError> {
-    Err(AppError::localized(
-        "windsurf.secret_storage_platform_pending",
-        "当前阶段仅支持 Windows/macOS Windsurf SecretStorage 写入",
-        "This phase only supports Windsurf SecretStorage writes on Windows/macOS",
-    ))
+#[cfg(test)]
+pub(crate) fn test_macos_encryption_context(password: &str) -> EncryptionContext {
+    EncryptionContext::Macos(Zeroizing::new(password.to_string()))
 }
 
-#[cfg(all(test, target_os = "macos"))]
-mod macos_tests {
+#[cfg(test)]
+mod tests {
     use super::*;
+    use std::cell::Cell;
+
+    const MACOS_HELLO_FIXTURE: [u8; 19] = [
+        0x76, 0x31, 0x30, 0x95, 0x88, 0x15, 0xf4, 0x8a, 0x74, 0x22, 0x7a, 0x2a, 0x31, 0x53,
+        0x50, 0x50, 0xc6, 0x88, 0x42,
+    ];
+
+    #[test]
+    fn macos_fixture_encrypts_and_decrypts_strictly() {
+        let encrypted = encrypt_macos_secret(b"hello", b"test-password").expect("encrypt");
+        assert_eq!(encrypted, MACOS_HELLO_FIXTURE);
+        let decrypted =
+            decrypt_macos_secret(&MACOS_HELLO_FIXTURE, b"test-password").expect("decrypt");
+        assert_eq!(decrypted.as_slice(), b"hello");
+    }
+
+    #[test]
+    fn macos_decrypt_rejects_wrong_key_truncation_and_bad_padding() {
+        assert!(decrypt_macos_secret(&MACOS_HELLO_FIXTURE, b"wrong-password").is_err());
+        assert!(decrypt_macos_secret(
+            &MACOS_HELLO_FIXTURE[..MACOS_HELLO_FIXTURE.len() - 1],
+            b"test-password"
+        )
+        .is_err());
+        let mut bad_padding = MACOS_HELLO_FIXTURE;
+        *bad_padding.last_mut().expect("last byte") ^= 0xff;
+        assert!(decrypt_macos_secret(&bad_padding, b"test-password").is_err());
+    }
+
+    #[test]
+    fn buffer_parser_rejects_invalid_shape_and_bytes() {
+        assert!(parse_encrypted_buffer_json(r#"{"data":[118,49,48]}"#).is_err());
+        assert!(parse_encrypted_buffer_json(
+            r#"{"type":"Buffer","data":[118,49,48,256]}"#
+        )
+        .is_err());
+        assert!(parse_encrypted_buffer_json(
+            r#"{"type":"Buffer","data":[118,49,"48"]}"#
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn decrypt_json_rejects_unknown_v11_and_v10_garbage() {
+        let context = test_macos_encryption_context("test-password");
+        let v11 = r#"{"type":"Buffer","data":[118,49,49,1,2,3]}"#;
+        assert!(decrypt_encrypted_buffer_json(v11, &context).is_err());
+        let garbage = r#"{"type":"Buffer","data":[118,49,48,1,2,3]}"#;
+        assert!(decrypt_encrypted_buffer_json(garbage, &context).is_err());
+    }
+
+    #[test]
+    fn windows_gcm_round_trip_validates_nonce_and_authentication() {
+        let key = [7u8; 32];
+        let encrypted = encrypt_windows_gcm_v10(&key, b"windsurf-secret").expect("encrypt");
+        let decrypted = decrypt_windows_gcm_v10(&key, &encrypted).expect("decrypt");
+        assert_eq!(decrypted.as_slice(), b"windsurf-secret");
+        let mut tampered = encrypted;
+        tampered[15] ^= 1;
+        assert!(decrypt_windows_gcm_v10(&key, &tampered).is_err());
+        assert!(decrypt_windows_gcm_v10(&key, b"v10short").is_err());
+    }
+
+    #[test]
+    fn keychain_target_comes_only_from_exact_app_identity() {
+        let devin = macos_keychain_target(
+            Path::new("/Applications/Devin.app/Contents/MacOS/Devin"),
+            Path::new("/tmp/Profiles/custom"),
+        )
+        .expect("Devin target");
+        assert_eq!(devin, DEVIN_KEYCHAIN_TARGET);
+        assert_eq!(devin.account, "Devin Key");
+
+        let windsurf = macos_keychain_target(
+            Path::new("/Applications/Windsurf.app"),
+            Path::new("/tmp/Profiles/custom"),
+        )
+        .expect("Windsurf target");
+        assert_eq!(windsurf, WINDSURF_KEYCHAIN_TARGET);
+        assert_eq!(windsurf.account, "Windsurf Key");
+
+        assert!(macos_keychain_target(
+            Path::new("/Applications/Other.app/Contents/MacOS/Other"),
+            Path::new("/tmp/Profiles/custom")
+        )
+        .is_err());
+        assert!(macos_keychain_target(
+            Path::new("/Applications/Windsurf.app"),
+            Path::new("/tmp/Devin")
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn keychain_reader_is_called_exactly_once_without_fallback() {
+        let calls = Cell::new(0);
+        let password = read_macos_safe_storage_password_with(DEVIN_KEYCHAIN_TARGET, |target| {
+            calls.set(calls.get() + 1);
+            assert_eq!(target, DEVIN_KEYCHAIN_TARGET);
+            Err(AppError::Message("denied".to_string()))
+        });
+        assert!(password.is_err());
+        assert_eq!(calls.get(), 1);
+    }
 
     #[test]
     fn strips_only_security_command_line_ending() {
@@ -646,58 +924,6 @@ mod macos_tests {
         assert_eq!(
             strip_macos_command_line_ending("secret\n\n".to_string()),
             "secret\n"
-        );
-    }
-
-    #[test]
-    fn orders_keychain_queries_by_profile_brand() {
-        let windsurf = macos_keychain_queries(Path::new("/tmp/Windsurf"))
-            .next()
-            .expect("Windsurf query");
-        assert_eq!(windsurf.service, "Windsurf Safe Storage");
-
-        let devin = macos_keychain_queries(Path::new("/tmp/Devin"))
-            .next()
-            .expect("Devin query");
-        assert_eq!(devin.service, "Devin Safe Storage");
-    }
-
-    #[test]
-    fn custom_profile_uses_selected_app_keychain_brand() {
-        let profile = Path::new("/tmp/Account Profiles/work");
-        assert!(macos_profile_prefers_windsurf(
-            profile,
-            Some(Path::new("/Applications/Windsurf.app"))
-        ));
-        assert!(macos_profile_prefers_windsurf(
-            profile,
-            Some(Path::new(
-                "/Applications/Windsurf.app/Contents/MacOS/Electron"
-            ))
-        ));
-        assert!(!macos_profile_prefers_windsurf(
-            profile,
-            Some(Path::new("/Applications/Devin.app/Contents/MacOS/Devin"))
-        ));
-        assert!(!macos_profile_prefers_windsurf(
-            Path::new("/tmp/Devin"),
-            Some(Path::new("/Applications/Windsurf.app"))
-        ));
-        assert!(macos_profile_prefers_windsurf(
-            Path::new("/tmp/Windsurf"),
-            None
-        ));
-    }
-
-    #[test]
-    fn encrypts_with_chromium_macos_secret_storage_format() {
-        let encrypted = encrypt_macos_secret(b"hello", b"test-password").expect("encrypt");
-        assert_eq!(
-            encrypted,
-            vec![
-                0x76, 0x31, 0x30, 0x95, 0x88, 0x15, 0xf4, 0x8a, 0x74, 0x22, 0x7a, 0x2a, 0x31, 0x53,
-                0x50, 0x50, 0xc6, 0x88, 0x42,
-            ]
         );
     }
 }

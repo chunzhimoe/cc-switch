@@ -2309,8 +2309,8 @@
       "imported": "已匯入 Windsurf 帳號：{{label}}",
       "added": "Windsurf 帳號已新增",
       "deleted": "Windsurf 帳號已刪除",
-      "switched": "登入狀態已寫入，Windsurf 已啟動",
-      "switchedWithWarning": "登入狀態已寫入，但 Windsurf 無法自動啟動：{{warning}}",
+      "switched": "工作階段寫入已驗證，Windsurf 已啟動；請在用戶端確認帳號",
+      "switchedWithWarning": "工作階段寫入已驗證，但 Windsurf 無法自動啟動：{{warning}}",
       "restartUnconfirmed": "尚未確認 Windsurf 已啟動，請手動開啟並檢查帳號",
       "pathDetected": "已偵測到 Windsurf：{{path}}",
       "locationSaved": "Windsurf 路徑已儲存"

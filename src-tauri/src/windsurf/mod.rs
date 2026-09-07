@@ -6,3 +6,4 @@ pub mod inject;
 pub mod local_import;
 pub mod paths;
 pub mod process;
+pub(crate) mod switch;

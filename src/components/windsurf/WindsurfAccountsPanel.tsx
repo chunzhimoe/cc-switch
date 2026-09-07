@@ -269,7 +269,8 @@ export default function WindsurfAccountsPanel() {
       if (!result.restarted || result.warning) {
         toast.warning(
           t("windsurf.notifications.switchedWithWarning", {
-            defaultValue: "登录态已写入，但 Windsurf 未能自动启动：{{warning}}",
+            defaultValue:
+              "会话写入已校验，但 Windsurf 未能自动启动：{{warning}}",
             warning:
               result.warning ||
               t("windsurf.notifications.restartUnconfirmed", {
@@ -280,7 +281,7 @@ export default function WindsurfAccountsPanel() {
       } else {
         toast.success(
           t("windsurf.notifications.switched", {
-            defaultValue: "登录态已写入，Windsurf 已启动",
+            defaultValue: "会话写入已校验，Windsurf 已启动；请在客户端确认账号",
           }),
         );
       }

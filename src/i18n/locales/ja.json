@@ -2308,8 +2308,8 @@
       "imported": "Windsurf アカウントをインポートしました: {{label}}",
       "added": "Windsurf アカウントを追加しました",
       "deleted": "Windsurf アカウントを削除しました",
-      "switched": "ログイン状態を書き込み、Windsurf を起動しました",
-      "switchedWithWarning": "ログイン状態は書き込みましたが、Windsurf を起動できませんでした: {{warning}}",
+      "switched": "セッションの書き込みを検証し、Windsurf を起動しました。クライアントでアカウントを確認してください。",
+      "switchedWithWarning": "セッションの書き込みは検証できましたが、Windsurf を起動できませんでした: {{warning}}",
       "restartUnconfirmed": "Windsurf の起動を確認できませんでした。手動で開いてアカウントを確認してください。",
       "pathDetected": "Windsurf を検出しました: {{path}}",
       "locationSaved": "Windsurf のパスを保存しました"

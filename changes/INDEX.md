@@ -1,5 +1,6 @@
 # 修改归档
 
+- [2026-09-07 Windsurf 登录注入校验](./2026-09-07_Windsurf登录注入校验.md) — 修正 Auth1 session/IDE 映射、切号前刷新、精确 Keychain、解密回读与 pending migration 清除；成功文案不再声称客户端已登录。
 - [2026-09-06 Windsurf v3.19.5-windsurf.4 发布](./2026-09-06_Windsurf-v3.19.5-windsurf.4发布.md) — 发布供应商级 `skipDangerousModePermissionPrompt` 投影、对称恢复和通用配置隔离修复。
 - [2026-09-06 跳过危险模式确认提示](./2026-09-06_跳过危险模式确认提示.md) — 供应商级 Auto 分类器跳过开关新增 `skipDangerousModePermissionPrompt=true`，并保证直连/代理投影、切走恢复和通用配置隔离对称。
 - [2026-09-06 Windsurf v3.19.5-windsurf.3 发布](./2026-09-06_Windsurf-v3.19.5-windsurf.3发布.md) — 在 macOS 切号修复与全绿 CI 之上发布 `v3.19.5-windsurf.3` 预发布标签。

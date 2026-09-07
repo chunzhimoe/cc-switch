@@ -2965,7 +2965,15 @@ impl ProviderService {
     ///    c. Update database is_current (as default for new devices)
     ///    d. Write target provider config to live files
     ///    e. Sync MCP configuration
-    pub fn switch(state: &AppState, app_type: AppType, id: &str) -> Result<SwitchResult, AppError> {
+    pub fn switch(
+        state: &AppState,
+        app_type: AppType,
+        id: &str,
+    ) -> Result<SwitchResult, AppError> {
+        if matches!(app_type, AppType::Windsurf) {
+            return crate::windsurf::switch::switch_provider(state, id);
+        }
+
         // Check if provider exists
         let providers = state.db.get_all_providers(app_type.as_str())?;
         let _provider = providers
@@ -3133,21 +3141,6 @@ impl ProviderService {
                     }
                 }
             }
-        }
-
-        // Windsurf authentication injection must succeed before current-account
-        // state is committed. Generic switch-mode apps historically commit
-        // current first, which would leave the UI and state.vscdb split if DPAPI,
-        // SQLite, or SecretStorage writing failed.
-        if matches!(app_type, AppType::Windsurf) {
-            write_live_with_common_config(state.db.as_ref(), &app_type, provider)?;
-            crate::settings::set_current_provider(&app_type, Some(id))?;
-            state.db.set_current_provider(app_type.as_str(), id)?;
-            if let Err(error) = McpService::sync_enabled_for_app(state, &app_type) {
-                log::warn!("切换 Windsurf 后重投影 MCP 失败（将在下次同步时自愈）: {error}");
-                result.warnings.push("windsurf_mcp_sync_failed".to_string());
-            }
-            return Ok(result);
         }
 
         // Additive mode apps skip setting is_current (no such concept)
