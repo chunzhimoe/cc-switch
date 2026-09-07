@@ -86,14 +86,14 @@ pub(crate) fn prepare_encryption_context(
     {
         let _ = launch_path;
         let key = get_windows_encryption_key(profile_dir)?;
-        return Ok(EncryptionContext::Windows(Zeroizing::new(key)));
+        Ok(EncryptionContext::Windows(Zeroizing::new(key)))
     }
 
     #[cfg(target_os = "macos")]
     {
         let target = macos_keychain_target(launch_path, profile_dir)?;
         let password = read_macos_safe_storage_password(target)?;
-        return Ok(EncryptionContext::Macos(password));
+        Ok(EncryptionContext::Macos(password))
     }
 
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]

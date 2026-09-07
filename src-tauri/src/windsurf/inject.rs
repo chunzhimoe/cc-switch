@@ -10,7 +10,7 @@ use crate::provider::Provider;
 
 use super::account::{resolve_session_token, WindsurfAccount};
 use super::auth_write::{
-    self, build_sessions_value, decrypt_encrypted_buffer_json, default_api_server_url,
+    build_sessions_value, decrypt_encrypted_buffer_json, default_api_server_url,
     inspect_existing_auth_secrets, prepare_encryption_context, write_windsurf_auth_data,
     EncryptionContext, ExistingSecretsSnapshot,
 };
@@ -441,7 +441,7 @@ mod tests {
         prepare_injection_with_context(
             account,
             db_path,
-            auth_write::test_macos_encryption_context("test-password"),
+            crate::windsurf::auth_write::test_macos_encryption_context("test-password"),
         )
         .expect("prepare injection")
     }
@@ -599,7 +599,7 @@ mod tests {
             SESSIONS_SECRET_KEY,
             r#"{"type":"Buffer","data":[118,49,49,1,2,3]}"#,
         );
-        let context = auth_write::test_macos_encryption_context("test-password");
+        let context = crate::windsurf::auth_write::test_macos_encryption_context("test-password");
         assert!(inspect_existing_auth_secrets(&conn, &context).is_err());
     }
 
