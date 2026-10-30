@@ -653,7 +653,7 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: CC Switch ${{ github.ref_name }}
-          prerelease: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
           body: |
             ## CC Switch ${{ github.ref_name }}
 
