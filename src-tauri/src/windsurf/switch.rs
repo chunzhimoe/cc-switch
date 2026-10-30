@@ -68,11 +68,11 @@ fn same_credentials(expected: &WindsurfAccount, actual: &WindsurfAccount) -> boo
 fn heal_provider_pointer(state: &AppState, provider_id: &str) -> Result<Provider, AppError> {
     let account = account::load_account(provider_id)?
         .filter(|account| account.id == provider_id)
-        .ok_or_else(|| {
-            AppError::InvalidInput("Windsurf account no longer exists".to_string())
-        })?;
+        .ok_or_else(|| AppError::InvalidInput("Windsurf account no longer exists".to_string()))?;
     let provider = account::provider_pointer(&account);
-    state.db.save_provider(AppType::Windsurf.as_str(), &provider)?;
+    state
+        .db
+        .save_provider(AppType::Windsurf.as_str(), &provider)?;
     Ok(provider)
 }
 
