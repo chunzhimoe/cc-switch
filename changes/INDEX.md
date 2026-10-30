@@ -1,5 +1,6 @@
 # 修改归档
 
+- [2026-10-30 Windsurf 切号 provider 指针自愈](./2026-10-30_Windsurf切号provider指针自愈.md) — `prepare_switch` 在 provider 行缺失时从账号文件重建指针，修复 "Windsurf provider no longer exists" 切号卡死。
 - [2026-09-07 Windsurf v3.19.5-windsurf.5 发布](./2026-09-07_Windsurf-v3.19.5-windsurf.5发布.md) — 在登录注入修复和全绿 CI 上发布五平台公共预发布；13 个资产上传成功，`latest.json` 因无 updater 签名保持空 platforms。
 - [2026-09-07 Windsurf 登录注入校验](./2026-09-07_Windsurf登录注入校验.md) — 修正 Auth1 session/IDE 映射、切号前刷新、精确 Keychain、解密回读与 pending migration 清除；成功文案不再声称客户端已登录。
 - [2026-09-06 Windsurf v3.19.5-windsurf.4 发布](./2026-09-06_Windsurf-v3.19.5-windsurf.4发布.md) — 发布供应商级 `skipDangerousModePermissionPrompt` 投影、对称恢复和通用配置隔离修复。

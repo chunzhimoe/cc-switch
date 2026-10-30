@@ -1,9 +1,7 @@
 use serde::Serialize;
-use serde_json::json;
 use tauri::{AppHandle, Manager, State};
 
 use crate::app_config::AppType;
-use crate::provider::Provider;
 use crate::store::AppState;
 use crate::windsurf::account::{
     self, new_account_from_auth1_refresh, new_token_account, WindsurfAccount,
@@ -281,20 +279,7 @@ fn save_provider_pointer(
     state: &AppState,
     account: &WindsurfAccount,
 ) -> Result<(), crate::error::AppError> {
-    let summary = account.summary();
-    let mut provider = Provider::with_id(
-        account.id.clone(),
-        summary.label,
-        json!({
-            "accountId": account.id,
-            "tokenType": summary.token_type,
-            "email": summary.email,
-            "maskedToken": summary.masked_token,
-        }),
-        None,
-    );
-    provider.category = Some("windsurf-account".to_string());
-    provider.icon = Some("windsurf".to_string());
+    let provider = account::provider_pointer(account);
     state
         .db
         .save_provider(AppType::Windsurf.as_str(), &provider)

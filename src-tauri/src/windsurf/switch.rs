@@ -61,6 +61,21 @@ fn same_credentials(expected: &WindsurfAccount, actual: &WindsurfAccount) -> boo
         && expected.windsurf_api_server_url == actual.windsurf_api_server_url
 }
 
+/// The provider row is bookkeeping on top of the account files: a sync
+/// download, database restore, or deletion through the generic provider list
+/// can drop the row while the account itself survives. Rebuild the pointer
+/// from the account file instead of stranding a switchable account.
+fn heal_provider_pointer(state: &AppState, provider_id: &str) -> Result<Provider, AppError> {
+    let account = account::load_account(provider_id)?
+        .filter(|account| account.id == provider_id)
+        .ok_or_else(|| {
+            AppError::InvalidInput("Windsurf account no longer exists".to_string())
+        })?;
+    let provider = account::provider_pointer(&account);
+    state.db.save_provider(AppType::Windsurf.as_str(), &provider)?;
+    Ok(provider)
+}
+
 /// Called on a blocking worker, never while holding an account-file lock or a
 /// SQLite transaction. The runtime drives the existing asynchronous auth flow.
 pub(crate) fn prepare_switch(
@@ -69,10 +84,13 @@ pub(crate) fn prepare_switch(
     will_close_client: bool,
 ) -> Result<PreparedSwitch, AppError> {
     let guard = acquire_switch_lock(&SWITCH_LOCK)?;
-    let provider = state
+    let provider = match state
         .db
         .get_provider_by_id(provider_id, AppType::Windsurf.as_str())?
-        .ok_or_else(|| AppError::InvalidInput("Windsurf provider no longer exists".to_string()))?;
+    {
+        Some(provider) => provider,
+        None => heal_provider_pointer(state, provider_id)?,
+    };
     let account_id = provider_account_id(&provider)?;
     let profile_dir = paths::user_data_dir()?;
     let db_path = paths::state_db_under(&profile_dir);
@@ -241,5 +259,48 @@ mod tests {
     fn post_commit_error_does_not_claim_rollback() {
         let error = registration_error(AppError::Database("unavailable".to_string()));
         assert!(error.to_string().contains("Login state was written"));
+    }
+
+    struct TestHomeGuard(Option<std::ffi::OsString>);
+
+    impl TestHomeGuard {
+        fn set(path: &std::path::Path) -> Self {
+            let old = std::env::var_os("CC_SWITCH_TEST_HOME");
+            std::env::set_var("CC_SWITCH_TEST_HOME", path);
+            Self(old)
+        }
+    }
+
+    impl Drop for TestHomeGuard {
+        fn drop(&mut self) {
+            match &self.0 {
+                Some(value) => std::env::set_var("CC_SWITCH_TEST_HOME", value),
+                None => std::env::remove_var("CC_SWITCH_TEST_HOME"),
+            }
+        }
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn missing_provider_pointer_is_rebuilt_from_the_account_file() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let _home = TestHomeGuard::set(temp.path());
+        let account = account::new_token_account(
+            "sk-ws-01-fixture-token".to_string(),
+            Some("Heal".to_string()),
+        )
+        .expect("fixture account");
+        let account = account::upsert_account(account).expect("persist fixture");
+        let db =
+            std::sync::Arc::new(crate::database::Database::memory().expect("in-memory database"));
+        let state = crate::store::AppState::new(db.clone());
+
+        let provider = heal_provider_pointer(&state, &account.id).expect("rebuild pointer");
+        assert_eq!(provider_account_id(&provider).unwrap(), account.id);
+        assert!(db
+            .get_provider_by_id(&account.id, AppType::Windsurf.as_str())
+            .expect("re-read provider")
+            .is_some());
+        assert!(heal_provider_pointer(&state, "windsurf_missing").is_err());
     }
 }

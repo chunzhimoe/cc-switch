@@ -6,6 +6,7 @@ use std::sync::{LazyLock, Mutex};
 
 use crate::config::{get_app_config_dir, read_json_file, write_json_file};
 use crate::error::AppError;
+use crate::provider::Provider;
 
 const ACCOUNTS_INDEX_FILE: &str = "windsurf_accounts.json";
 const ACCOUNTS_DIR: &str = "windsurf_accounts";
@@ -178,6 +179,27 @@ pub fn delete_account(account_id: &str) -> Result<bool, AppError> {
     index.accounts.retain(|account| account.id != account_id);
     save_index(&index)?;
     Ok(existed)
+}
+
+/// Provider pointer for the generic provider bookkeeping (`providers` table,
+/// `app_type = "windsurf"`). The account files remain the source of truth; the
+/// row is a rebuildable pointer to them.
+pub(crate) fn provider_pointer(account: &WindsurfAccount) -> Provider {
+    let summary = account.summary();
+    let mut provider = Provider::with_id(
+        account.id.clone(),
+        summary.label,
+        serde_json::json!({
+            "accountId": account.id,
+            "tokenType": summary.token_type,
+            "email": summary.email,
+            "maskedToken": summary.masked_token,
+        }),
+        None,
+    );
+    provider.category = Some("windsurf-account".to_string());
+    provider.icon = Some("windsurf".to_string());
+    provider
 }
 
 pub fn mark_last_used(account_id: &str) -> Result<(), AppError> {
