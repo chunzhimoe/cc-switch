@@ -1,5 +1,6 @@
 # 修改归档
 
+- [2026-10-30 v3.19.6 正式版发布](./2026-10-30_v3.19.6正式版发布.md) — 版本升至 3.19.6，release workflow 按标签 `-` 后缀区分预发布，发布首个正式版（13 资产，CI/Release 全绿）。
 - [2026-10-30 Windsurf 切号 provider 指针自愈](./2026-10-30_Windsurf切号provider指针自愈.md) — `prepare_switch` 在 provider 行缺失时从账号文件重建指针，修复 "Windsurf provider no longer exists" 切号卡死。
 - [2026-09-07 Windsurf v3.19.5-windsurf.5 发布](./2026-09-07_Windsurf-v3.19.5-windsurf.5发布.md) — 在登录注入修复和全绿 CI 上发布五平台公共预发布；13 个资产上传成功，`latest.json` 因无 updater 签名保持空 platforms。
 - [2026-09-07 Windsurf 登录注入校验](./2026-09-07_Windsurf登录注入校验.md) — 修正 Auth1 session/IDE 映射、切号前刷新、精确 Keychain、解密回读与 pending migration 清除；成功文案不再声称客户端已登录。
